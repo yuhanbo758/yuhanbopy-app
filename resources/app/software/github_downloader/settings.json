@@ -1,0 +1,8 @@
+{
+    "name": "GitHub仓库下载器",
+    "description": "一个简单的GitHub仓库克隆工具。\n\n使用方法：\n1. 在输入框中粘贴GitHub仓库地址\n2. 选择保存位置\n3. 选择是否自动解压\n4. 点击克隆仓库按钮开始下载",
+    "main_file": "github_downloader.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "下载工具"
+} 

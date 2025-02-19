@@ -1,0 +1,9 @@
+python312.zip
+.
+DLLs
+Lib
+Lib/site-packages
+tcl
+tcl/tcl8.6
+tcl/tk8.6
+import site

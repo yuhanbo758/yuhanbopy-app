@@ -1,0 +1,8 @@
+{
+    "name": "终端模拟器",
+    "description": "一个简单的终端模拟器，可以执行系统命令。\n\n使用方法：\n- 输入任何系统命令来执行\n- 输入 'exit' 或 'quit' 退出程序\n- 输入 'clear' 清除屏幕\n- 输入 'cd 目录路径' 切换工作目录",
+    "main_file": "terminal.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "系统工具"
+} 

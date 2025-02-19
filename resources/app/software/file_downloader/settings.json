@@ -1,0 +1,8 @@
+{
+    "name": "文件下载器",
+    "description": "一个通用的文件下载工具。\n\n使用方法：\n1. 在输入框中粘贴文件下载地址\n2. 选择文件保存位置\n3. 选择是否自动解压ZIP文件\n4. 点击下载按钮开始下载",
+    "main_file": "file_downloader.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "下载工具"
+} 

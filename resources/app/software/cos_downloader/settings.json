@@ -1,0 +1,8 @@
+{
+    "name": "腾讯云对象存储下载器",
+    "description": "一个简单的腾讯云对象存储下载工具。\n\n使用方法：\n1. 在输入框中粘贴文件下载地址\n2. 点击下载按钮开始下载\n3. 文件将保存到 app/software/ 目录\n4. ZIP文件会自动解压",
+    "main_file": "cos_downloader.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "下载工具"
+} 
