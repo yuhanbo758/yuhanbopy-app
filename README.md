@@ -1,6 +1,7 @@
 # yuhanbopy-app：三人聚智-余汉波程序控制工具使用说明
 
 
+
 ## 1. 基本功能
 
 - 这是一个基于Electron的桌面应用程序，用于管理和运行Python脚本，用于提高开发和文件管理效率。
@@ -19,7 +20,7 @@
 2. yuhanbopy-lh：在 yuhanbopy-xl 基础上，植入了 mini QMT 的库 xquant，主要对象是需要小 QMT 量化交易的小白，可以直接加载运行个人提供“通达信与 QMT 结合下单”的tdx3 程序。
 3. yuhanbopy-mini：yuhanbopy-xl 的 mini 版，没有嵌入版 python，安装后首次启动时，系统会要求选择Python解释器（.exe文件）
 
-![[Pasted image 20250218210315.png]]
+![Pasted image 20250218210315](https://gdsx.sanrenjz.com/image/Pasted%20image%2020250218210315.png?imageSlim)
 
 ## 3. 程序目录结构
 
@@ -71,7 +72,7 @@
 
 - 需加载本地 python 代码，点击右上角“本地文件”，选择 py 文件或文件夹，会将文件或文件夹复制到app/software 下，创建项目。
 
-![[Pasted image 20250218210349.png]]
+![Pasted image 20250218210349](https://gdsx.sanrenjz.com/image/Pasted%20image%2020250218210349.png?imageSlim)
 
 ## 5. 安全特性
 
@@ -138,4 +139,3 @@
 基于 MIT 许可证发布
 
 ![三码合一](https://gdsx.sanrenjz.com/PicGo/%E5%85%A8%E7%A0%81%E5%90%88%E4%B8%80.png)
-
