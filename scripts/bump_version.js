@@ -13,17 +13,23 @@ function writeJson(filePath, value) {
     fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-function bumpPatch(version) {
+function bumpMinor(version) {
     const parts = String(version || '1.0.0').trim().split('.').map((segment) => Number.parseInt(segment, 10) || 0);
     while (parts.length < 3) {
         parts.push(0);
     }
-    parts[2] += 1;
+    parts[2] = 0;
+    if (parts[1] >= 9) {
+        parts[0] += 1;
+        parts[1] = 0;
+    } else {
+        parts[1] += 1;
+    }
     return parts.slice(0, 3).join('.');
 }
 
 const packageJson = readJson(packageJsonPath);
-const nextVersion = process.argv[2] || bumpPatch(packageJson.version);
+const nextVersion = process.argv[2] || bumpMinor(packageJson.version);
 
 packageJson.version = nextVersion;
 writeJson(packageJsonPath, packageJson);

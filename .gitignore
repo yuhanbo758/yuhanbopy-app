@@ -39,6 +39,9 @@ vulkan-1.dll
 
 # 构建缓存
 build/icon.ico
+build/icon.png
+build/icon.icns
+build/icon.iconset/
 
 # Python 缓存
 __pycache__/

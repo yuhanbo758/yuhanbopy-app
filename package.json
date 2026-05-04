@@ -8,7 +8,9 @@
     "prepare-icons": "node scripts/prepare_icons.js",
     "build": "electron-builder",
     "build-win": "npm run prepare-icons && electron-builder --win --x64",
-    "release-win": "npm run prepare-icons && electron-builder --win --x64 --publish always",
+    "release-win": "npm run prepare-icons && electron-builder --win --x64 --publish never",
+    "release-mac": "npm run prepare-icons && electron-builder --mac --x64 --publish never",
+    "release-linux": "npm run prepare-icons && electron-builder --linux --x64 --publish never",
     "bump-version": "node scripts/bump_version.js"
   },
   "author": "余汉波",
@@ -25,7 +27,8 @@
   "devDependencies": {
     "electron": "^25.9.8",
     "electron-builder": "23.6.0",
-    "png-to-ico": "^3.0.1"
+    "png-to-ico": "^3.0.1",
+    "pngjs": "^7.0.0"
   },
   "build": {
     "appId": "com.sanrenjz.yuhanbopy",
@@ -36,6 +39,7 @@
     "asar": false,
     "compression": "normal",
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -51,7 +55,39 @@
         }
       ],
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "yuhanbopy-app-${version}-win-${arch}.${ext}"
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "yuhanbopy-app-${version}-mac-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "artifactName": "yuhanbopy-app-${version}-linux-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -59,10 +95,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "allowElevation": false,
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "yuhanbopy-app-${version}-win-${arch}.${ext}"
     },
     "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
+      "artifactName": "yuhanbopy-app-${version}-win-portable.${ext}"
     },
     "extraResources": [
       {

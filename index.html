@@ -429,19 +429,46 @@
         }
 
         .account-btn {
+            position: relative;
             width: 42px;
             height: 42px;
-            border: none;
+            border: 2px solid rgba(24, 144, 255, 0.18);
             border-radius: 999px;
             cursor: pointer;
-            background: #fff url("build/logo.png") center / cover no-repeat;
+            background: #fff;
             box-shadow: 0 8px 18px rgba(21, 101, 192, 0.16);
             overflow: hidden;
-            text-indent: -999px;
+            padding: 0;
+        }
+
+        .account-btn img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        .account-btn .member-badge {
+            position: absolute;
+            right: -1px;
+            bottom: -1px;
+            display: none;
+            padding: 1px 4px;
+            border-radius: 999px;
+            background: #1890ff;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.3;
+            box-shadow: 0 2px 6px rgba(24, 144, 255, 0.35);
         }
 
         .account-btn.member {
             outline: 3px solid rgba(46, 125, 50, 0.22);
+        }
+
+        .account-btn.member .member-badge {
+            display: inline-block;
         }
 
         .account-dropdown {
@@ -597,7 +624,10 @@
                 <!-- 将设置入口提升到顶栏，避免放在头像菜单内部。 -->
                 <button class="header-button" id="settings-btn">设置</button>
                 <div class="account-menu" id="account-menu">
-                    <button class="account-btn" id="account-btn" title="账号">账号</button>
+                    <button class="account-btn" id="account-btn" title="账号">
+                        <img id="account-logo" src="build/logo.png" alt="三人聚智">
+                        <span class="member-badge">会员</span>
+                    </button>
                     <div class="account-dropdown" id="account-dropdown">
                         <div class="account-name" id="account-name">未登录</div>
                         <div class="account-status" id="account-status">登录后可识别 python 会员并优先使用专属更新通道。</div>
@@ -993,10 +1023,21 @@
             document.getElementById('account-status').textContent = state.account.authenticated
                 ? (state.account.canDownloadUpdates ? '已识别 python 会员，可优先使用专属更新通道。' : '已登录，但当前账号暂无 python 会员更新权限。')
                 : '登录后可识别 python 会员并优先使用专属更新通道。';
-            document.getElementById('account-btn').classList.toggle('member', Boolean(state.account.canDownloadUpdates));
+            document.getElementById('account-btn').classList.toggle('member', Boolean(state.account.authenticated));
             document.getElementById('account-login-btn').style.display = state.account.authenticated ? 'none' : 'block';
             document.getElementById('account-refresh-btn').style.display = state.account.authenticated ? 'block' : 'none';
             document.getElementById('account-logout-btn').style.display = state.account.authenticated ? 'block' : 'none';
+        }
+
+        async function loadLogoAsset() {
+            try {
+                const logoDataUrl = await ipcRenderer.invoke('assets:get-logo-data-url');
+                if (logoDataUrl) {
+                    document.getElementById('account-logo').src = logoDataUrl;
+                }
+            } catch (error) {
+                console.warn('加载账号 logo 失败:', error);
+            }
         }
 
         async function loadAccount() {
@@ -1263,7 +1304,7 @@
                 document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
             } catch (_) {}
             updateUpdateUI();
-            await Promise.all([loadPrograms(), loadAccount()]);
+            await Promise.all([loadLogoAsset(), loadPrograms(), loadAccount()]);
             setInterval(loadPrograms, 10000);
         })();
     </script>

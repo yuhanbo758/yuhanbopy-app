@@ -93,17 +93,89 @@ jobs:
           path: |
             dist/*.exe
             dist/*.yml
-            dist/*.yaml
+            dist/*.blockmap
+
+  build-macos:
+    needs: prepare-release
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS release
+        run: npm run release-mac
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dist
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.yml
+            dist/*.blockmap
+
+  build-linux:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux release
+        run: npm run release-linux
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: |
+            dist/*.AppImage
+            dist/*.yml
             dist/*.blockmap
 
   publish-release:
-    needs: [prepare-release, build-windows]
+    needs: [prepare-release, build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - name: Download build artifact
+      - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: windows-dist
+          path: dist
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dist
+          path: dist
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-dist
           path: dist
 
       - name: Publish GitHub release
@@ -113,5 +185,12 @@ jobs:
         run: |
           TAG="${{ needs.prepare-release.outputs.tag }}"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
-          FILES=$(find dist -maxdepth 1 -type f \( -name "*.exe" -o -name "*.yml" -o -name "*.yaml" -o -name "*.blockmap" \) | tr '\n' ' ')
+          FILES=$(find dist -maxdepth 1 -type f \( \
+            -name "*.exe" -o \
+            -name "*.dmg" -o \
+            -name "*.zip" -o \
+            -name "*.AppImage" -o \
+            -name "latest*.yml" -o \
+            -name "*.blockmap" \
+          \) ! -name "builder-debug.yml" | sort | tr '\n' ' ')
           gh release create "$TAG" $FILES --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Automated release for $TAG"

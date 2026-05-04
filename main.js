@@ -44,6 +44,7 @@ const pythonTclPath = path.join(pythonRootPath, 'tcl');
 const pythonDLLsPath = path.join(pythonRootPath, 'DLLs');
 const embeddedAppPath = path.join(appRoot, 'app');
 const settingsPath = path.join(app.getPath('userData'), SETTINGS_FILE);
+const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 
 const defaultSettings = {
     autoStart: false,
@@ -65,7 +66,7 @@ const runningProcesses = new Map();
 
 process.env.PATH = [pythonRootPath, pythonDLLsPath, pythonScriptsPath, process.env.PATH]
     .filter(Boolean)
-    .join(';');
+    .join(pathDelimiter);
 
 process.env.PYTHONPATH = [pythonLibPath, pythonSitePackagesPath, embeddedAppPath]
     .filter(Boolean)
@@ -110,6 +111,25 @@ function getIconPath() {
         path.join(buildRoot, 'logo.png')
     ];
     return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function getLogoPath() {
+    const candidates = [
+        path.join(buildRoot, 'logo.png'),
+        path.join(buildRoot, 'icon.png'),
+        path.join(__dirname, 'logo.png')
+    ];
+    return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function getDataUrl(filePath) {
+    if (!filePath || !fs.existsSync(filePath)) {
+        return null;
+    }
+
+    const extension = path.extname(filePath).toLowerCase();
+    const mimeType = extension === '.svg' ? 'image/svg+xml' : 'image/png';
+    return `data:${mimeType};base64,${fs.readFileSync(filePath).toString('base64')}`;
 }
 
 function getSoftwareDir() {
@@ -1217,6 +1237,7 @@ ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (_event, settings) => saveSettings(settings));
 ipcMain.handle('get-version', () => app.getVersion());
 ipcMain.handle('get-software-directory', () => getSoftwareDir());
+ipcMain.handle('assets:get-logo-data-url', () => getDataUrl(getLogoPath()));
 
 ipcMain.handle('open-software-directory', async () => {
     const softwareDir = getSoftwareDir();
