@@ -90,7 +90,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-dist
-          path: dist/**
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/*.yaml
+            dist/*.blockmap
 
   publish-release:
     needs: [prepare-release, build-windows]
@@ -109,4 +113,5 @@ jobs:
         run: |
           TAG="${{ needs.prepare-release.outputs.tag }}"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
-          gh release create "$TAG" dist/** --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Automated release for $TAG"
+          FILES=$(find dist -maxdepth 1 -type f \( -name "*.exe" -o -name "*.yml" -o -name "*.yaml" -o -name "*.blockmap" \) | tr '\n' ' ')
+          gh release create "$TAG" $FILES --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Automated release for $TAG"
