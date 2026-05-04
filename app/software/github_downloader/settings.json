@@ -1,0 +1,8 @@
+{
+    "name": "GitHub仓库下载器",
+    "description": "一个简单的GitHub仓库克隆工具。",
+    "main_file": "github_downloader.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "下载工具"
+} 

@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' data: https:;">
+    <title>三人聚智-Python程序管理工具</title>
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fbff;
+            --line: #d8e2f0;
+            --text: #172033;
+            --muted: #63708a;
+            --brand: #1565c0;
+            --brand-soft: #e6f0ff;
+            --success: #2e7d32;
+            --danger: #c62828;
+            --shadow: 0 16px 42px rgba(18, 35, 61, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(21, 101, 192, 0.16), transparent 24%),
+                radial-gradient(circle at top right, rgba(46, 125, 50, 0.12), transparent 20%),
+                linear-gradient(180deg, #fbfdff 0%, var(--bg) 100%);
+            color: var(--text);
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            overflow: hidden;
+        }
+
+        button, input { font: inherit; }
+
+        .app-shell {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 18px 24px;
+            border-bottom: 1px solid rgba(216, 226, 240, 0.9);
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(14px);
+        }
+
+        .search-wrap {
+            flex: 1;
+            max-width: 520px;
+            position: relative;
+        }
+
+        .search-wrap input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 0 16px;
+            background: rgba(248, 251, 255, 0.95);
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .search-wrap input:focus {
+            border-color: rgba(21, 101, 192, 0.55);
+            box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.12);
+            background: #fff;
+        }
+
+        .header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .header-button {
+            border: 1px solid rgba(21, 101, 192, 0.22);
+            background: #fff;
+            color: var(--brand);
+            border-radius: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            min-height: 42px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+
+        .header-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(21, 101, 192, 0.14);
+            background: var(--brand-soft);
+        }
+
+        .content {
+            flex: 1;
+            overflow: hidden;
+            padding: 22px 24px 24px;
+        }
+
+        .programs-container {
+            height: 100%;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 18px;
+            align-content: start;
+            padding-right: 4px;
+        }
+
+        .program-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,250,255,0.98) 100%);
+            border: 1px solid rgba(216, 226, 240, 0.95);
+            border-radius: 20px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 228px;
+            overflow: hidden;
+        }
+
+        .program-card:hover {
+            border-color: rgba(21, 101, 192, 0.3);
+        }
+
+        .program-title {
+            font-size: 19px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .program-card-main {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 0;
+        }
+
+        .program-desc {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+            flex: 1;
+            white-space: pre-line;
+        }
+
+        .program-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .meta-tag {
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #eef4fb;
+            color: #47617f;
+        }
+
+        .program-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+            width: 100%;
+            flex: 0 0 auto;
+        }
+
+        .action-btn {
+            flex: 1;
+            border: none;
+            border-radius: 12px;
+            min-height: 40px;
+            cursor: pointer;
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(23, 32, 51, 0.14);
+        }
+
+        .run-btn {
+            background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
+            color: #fff;
+        }
+
+        .detail-btn {
+            background: #eaf2fd;
+            color: var(--brand);
+        }
+
+        .empty-state {
+            display: grid;
+            place-items: center;
+            min-height: 260px;
+            border-radius: 24px;
+            border: 1px dashed var(--line);
+            color: var(--muted);
+            background: rgba(255,255,255,0.66);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 16, 28, 0.55);
+            z-index: 999;
+            padding: 28px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            width: min(980px, 100%);
+            max-height: calc(100vh - 56px);
+            overflow: auto;
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 28px 80px rgba(4, 15, 33, 0.32);
+            position: relative;
+        }
+
+        .settings-modal-content {
+            width: min(1120px, calc(100vw - 40px));
+            overflow: hidden;
+        }
+
+        .modal-close {
+            position: absolute;
+            right: 16px;
+            top: 14px;
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 999px;
+            background: #eff4fb;
+            color: #52637a;
+            cursor: pointer;
+        }
+
+        .settings-layout {
+            display: grid;
+            grid-template-columns: 240px minmax(0, 1fr);
+            min-height: 580px;
+            align-items: stretch;
+        }
+
+        .settings-sidebar {
+            border-right: 1px solid var(--line);
+            background: linear-gradient(180deg, #f9fbff 0%, #f1f6fd 100%);
+            padding: 28px 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .settings-sidebar button {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            padding: 12px 14px;
+            border-radius: 12px;
+            text-align: left;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+
+        .settings-sidebar button.active {
+            background: #fff;
+            color: var(--brand);
+            box-shadow: 0 10px 24px rgba(21, 101, 192, 0.1);
+        }
+
+        .settings-main {
+            padding: 28px 28px 24px;
+            min-width: 0;
+        }
+
+        .settings-tab { display: none; }
+        .settings-tab.active { display: block; }
+
+        .section-title {
+            margin: 0 0 8px;
+            font-size: 24px;
+        }
+
+        .section-desc {
+            margin: 0 0 22px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .setting-card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--surface-soft);
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .setting-card h3 {
+            margin: 0 0 8px;
+            font-size: 17px;
+        }
+
+        .setting-help {
+            margin: 0 0 14px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .setting-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .setting-row input[type="text"] {
+            flex: 1;
+            min-width: 240px;
+            height: 42px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 0 12px;
+            background: #fff;
+        }
+
+        .setting-row button,
+        .settings-footer button,
+        .account-dropdown button,
+        .update-actions button {
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            background: #e8f1fc;
+            color: var(--brand);
+        }
+
+        .setting-row button.primary,
+        .settings-footer button.primary,
+        .update-actions button.primary {
+            background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
+            color: #fff;
+        }
+
+        .setting-row button.danger,
+        .account-dropdown button.danger {
+            background: #fdecec;
+            color: var(--danger);
+        }
+
+        .settings-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 8px;
+        }
+
+        .toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text);
+        }
+
+        .details-body {
+            padding: 28px;
+        }
+
+        .details-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 14px 0 18px;
+        }
+
+        .details-doc {
+            margin-top: 22px;
+            padding: 20px;
+            border-radius: 18px;
+            background: #f8fbff;
+            border: 1px solid var(--line);
+            line-height: 1.8;
+            color: #304157;
+        }
+
+        .details-doc h1,
+        .details-doc h2,
+        .details-doc h3,
+        .details-doc h4 {
+            color: var(--text);
+            margin: 18px 0 10px;
+        }
+
+        .details-doc pre {
+            background: #132238;
+            color: #f0f6ff;
+            padding: 14px;
+            border-radius: 14px;
+            overflow: auto;
+        }
+
+        .details-doc code {
+            font-family: Consolas, monospace;
+        }
+
+        .account-menu {
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        .account-btn {
+            width: 42px;
+            height: 42px;
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            background: #fff url("build/logo.png") center / cover no-repeat;
+            box-shadow: 0 8px 18px rgba(21, 101, 192, 0.16);
+            overflow: hidden;
+            text-indent: -999px;
+        }
+
+        .account-btn.member {
+            outline: 3px solid rgba(46, 125, 50, 0.22);
+        }
+
+        .account-dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 10px);
+            width: 280px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+            display: none;
+            z-index: 20;
+        }
+
+        .account-dropdown.show {
+            display: block;
+        }
+
+        .account-name {
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .account-status {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .account-dropdown button {
+            width: 100%;
+            margin-top: 8px;
+            text-align: left;
+        }
+
+        .update-body {
+            padding: 28px;
+        }
+
+        .update-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid #edf2f9;
+        }
+
+        .update-source-tag {
+            color: var(--brand);
+            font-weight: 700;
+        }
+
+        .update-source-tag.member {
+            color: var(--success);
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: #e7eef8;
+            overflow: hidden;
+            margin: 18px 0;
+        }
+
+        .progress-bar {
+            width: 0;
+            height: 100%;
+            background: linear-gradient(135deg, #1565c0 0%, #4fc3f7 100%);
+            transition: width 0.2s ease;
+        }
+
+        .update-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .notification {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            min-width: 280px;
+            max-width: 420px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-left: 5px solid var(--brand);
+            border-radius: 16px;
+            padding: 14px 16px;
+            box-shadow: var(--shadow);
+            z-index: 1200;
+        }
+
+        .notification.success { border-left-color: var(--success); }
+        .notification.error { border-left-color: var(--danger); }
+
+        .notification-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .notification-message {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .contact-modal-content {
+            width: auto;
+            padding: 18px;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .contact-modal-content img {
+            max-width: min(92vw, 420px);
+            border-radius: 20px;
+            box-shadow: 0 20px 54px rgba(4, 15, 33, 0.36);
+        }
+
+        @media (max-width: 820px) {
+            .header { flex-wrap: wrap; }
+            .search-wrap { max-width: none; width: 100%; }
+            .settings-layout { grid-template-columns: 1fr; }
+            .settings-sidebar { border-right: none; border-bottom: 1px solid var(--line); }
+        }
+
+        @media (max-width: 640px) {
+            .header { padding: 16px; }
+            .content { padding: 16px; }
+            .programs-container { grid-template-columns: 1fr; }
+            .program-actions, .update-actions { flex-direction: column; }
+            .modal { padding: 14px; }
+            .details-body, .settings-main, .update-body { padding: 22px 18px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="header">
+            <div class="search-wrap">
+                <input id="search-box" type="text" placeholder="搜索程序名称...">
+            </div>
+            <div class="header-actions">
+                <button class="header-button" id="log-btn">日志</button>
+                <button class="header-button" id="local-file-btn">本地文件</button>
+                <button class="header-button" id="store-btn">程序小店</button>
+                <button class="header-button" id="docs-btn">文档</button>
+                <button class="header-button" id="contact-btn">联系我们</button>
+                <!-- 将设置入口提升到顶栏，避免放在头像菜单内部。 -->
+                <button class="header-button" id="settings-btn">设置</button>
+                <div class="account-menu" id="account-menu">
+                    <button class="account-btn" id="account-btn" title="账号">账号</button>
+                    <div class="account-dropdown" id="account-dropdown">
+                        <div class="account-name" id="account-name">未登录</div>
+                        <div class="account-status" id="account-status">登录后可识别 python 会员并优先使用专属更新通道。</div>
+                        <button id="account-login-btn">登录程序小店</button>
+                        <button id="account-refresh-btn">刷新会员状态</button>
+                        <button id="check-update-btn">检查更新</button>
+                        <button id="open-store-dropdown-btn">打开程序小店</button>
+                        <button id="account-logout-btn" class="danger">退出登录</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div id="programs-container" class="programs-container"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="contact-modal">
+        <div class="modal-content contact-modal-content">
+            <button class="modal-close" data-close>&times;</button>
+            <img src="https://gdsx.sanrenjz.com/image/sanrenjz_yuhanbolh_yuhanbo758.png?imageSlim&t=1ab9b82c-e220-8022-beff-e265a194292a" alt="联系我们">
+        </div>
+    </div>
+
+    <div class="modal" id="settings-modal">
+        <div class="modal-content settings-modal-content">
+            <button class="modal-close" data-close>&times;</button>
+            <div class="settings-layout">
+                <div class="settings-sidebar">
+                    <button class="active" data-tab="general-tab">常规设置</button>
+                    <button data-tab="update-tab">更新设置</button>
+                </div>
+                <div class="settings-main">
+                    <div class="settings-tab active" id="general-tab">
+                        <h2 class="section-title">常规设置</h2>
+                        <p class="section-desc">管理开机启动、本地插件目录和程序小店下载插件的安装位置。</p>
+                        <div class="setting-card">
+                            <h3>开机自启动</h3>
+                            <p class="setting-help">启用后，Windows 登录时自动启动当前应用。</p>
+                            <label class="toggle">
+                                <input type="checkbox" id="auto-start-checkbox">
+                                <span>开机时自动启动应用</span>
+                            </label>
+                        </div>
+                        <div class="setting-card">
+                            <h3>本地插件目录</h3>
+                            <p class="setting-help">程序小店下载的插件会自动解压到 `app/software`，程序会自动读取该目录中的所有插件。</p>
+                            <div class="setting-row">
+                                <input type="text" id="software-dir-input" readonly>
+                                <button id="open-software-dir-btn">打开本地插件文件夹</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-tab" id="update-tab">
+                        <h2 class="section-title">更新设置</h2>
+                        <p class="section-desc">自动更新会根据当前账号权限选择合适的更新通道。</p>
+                        <div class="setting-card">
+                            <h3>自动检查更新</h3>
+                            <p class="setting-help">启用后，程序启动后会自动检查可用新版本。</p>
+                            <label class="toggle">
+                                <input type="checkbox" id="auto-check-updates-checkbox">
+                                <span>启动时自动检查更新</span>
+                            </label>
+                        </div>
+                        <div class="setting-card">
+                            <h3>更新源说明</h3>
+                            <p class="setting-help">会员用户可使用专属高速更新通道；普通用户使用标准更新通道。</p>
+                            <div class="setting-row">
+                                <button id="open-update-modal-btn" class="primary">立即检查更新</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-footer">
+                        <button id="save-settings-btn" class="primary">保存设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="details-modal">
+        <div class="modal-content">
+            <button class="modal-close" data-close>&times;</button>
+            <div class="details-body">
+                <h2 class="section-title" id="details-title">详情</h2>
+                <div class="details-meta" id="details-meta"></div>
+                <div class="section-desc" id="details-desc"></div>
+                <div class="details-doc" id="details-doc">暂无文档说明。</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="update-modal">
+        <div class="modal-content">
+            <button class="modal-close" data-close>&times;</button>
+            <div class="update-body">
+                <h2 class="section-title">应用更新</h2>
+                <div class="update-row"><span>当前版本</span><strong id="current-version">-</strong></div>
+                <div class="update-row"><span>更新源</span><strong class="update-source-tag" id="update-source">标准更新通道</strong></div>
+                <div class="update-row"><span>状态</span><strong id="update-message">尚未检查</strong></div>
+                <div class="progress-track"><div class="progress-bar" id="update-progress"></div></div>
+                <div class="update-actions">
+                    <button id="update-check-btn">检查更新</button>
+                    <button id="update-download-btn" class="primary" disabled>下载更新</button>
+                    <button id="update-install-btn" disabled>安装重启</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer, shell } = require('electron');
+        const remote = require('@electron/remote');
+        const fs = require('fs');
+        const path = require('path');
+
+        const state = {
+            programs: [],
+            filteredPrograms: [],
+            settings: {
+                autoStart: false,
+                autoCheckUpdates: true
+            },
+            account: {
+                authenticated: false,
+                canDownloadUpdates: false,
+                user: null
+            },
+            update: {
+                available: false,
+                downloaded: false,
+                source: 'github',
+                message: '尚未检查',
+                progress: 0
+            }
+        };
+
+        function escapeHtml(value) {
+            return String(value || '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function renderInlineMarkdown(text) {
+            return escapeHtml(text)
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        }
+
+        function renderMarkdown(markdown) {
+            const normalized = String(markdown || '').replace(/\r\n/g, '\n');
+            const lines = normalized.split('\n');
+            const blocks = [];
+            let paragraph = [];
+            let listBuffer = [];
+            let listType = null;
+            let codeBuffer = [];
+            let inCodeBlock = false;
+
+            function flushParagraph() {
+                if (!paragraph.length) return;
+                blocks.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+                paragraph = [];
+            }
+
+            function flushList() {
+                if (!listBuffer.length) return;
+                const items = listBuffer.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('');
+                blocks.push(`<${listType}>${items}</${listType}>`);
+                listBuffer = [];
+                listType = null;
+            }
+
+            function flushCodeBlock() {
+                if (!codeBuffer.length) return;
+                blocks.push(`<pre><code>${escapeHtml(codeBuffer.join('\n'))}</code></pre>`);
+                codeBuffer = [];
+            }
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+
+                if (trimmed.startsWith('```')) {
+                    flushParagraph();
+                    flushList();
+                    if (inCodeBlock) {
+                        flushCodeBlock();
+                        inCodeBlock = false;
+                    } else {
+                        inCodeBlock = true;
+                    }
+                    continue;
+                }
+
+                if (inCodeBlock) {
+                    codeBuffer.push(line);
+                    continue;
+                }
+
+                if (!trimmed) {
+                    flushParagraph();
+                    flushList();
+                    continue;
+                }
+
+                const heading = trimmed.match(/^(#{1,4})\s+(.*)$/);
+                if (heading) {
+                    flushParagraph();
+                    flushList();
+                    const level = Math.min(4, heading[1].length);
+                    blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+                    continue;
+                }
+
+                const quote = trimmed.match(/^>\s?(.*)$/);
+                if (quote) {
+                    flushParagraph();
+                    flushList();
+                    blocks.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+                    continue;
+                }
+
+                const unordered = trimmed.match(/^[-*+]\s+(.*)$/);
+                if (unordered) {
+                    flushParagraph();
+                    if (listType && listType !== 'ul') flushList();
+                    listType = 'ul';
+                    listBuffer.push(unordered[1]);
+                    continue;
+                }
+
+                const ordered = trimmed.match(/^\d+\.\s+(.*)$/);
+                if (ordered) {
+                    flushParagraph();
+                    if (listType && listType !== 'ol') flushList();
+                    listType = 'ol';
+                    listBuffer.push(ordered[1]);
+                    continue;
+                }
+
+                paragraph.push(trimmed);
+            }
+
+            flushParagraph();
+            flushList();
+            flushCodeBlock();
+            return blocks.join('') || '<p>暂无说明文档。</p>';
+        }
+
+        function showNotification(title, message, type = 'info') {
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+
+            const node = document.createElement('div');
+            node.className = `notification ${type}`;
+            node.innerHTML = `
+                <div class="notification-title">${escapeHtml(title)}</div>
+                <div class="notification-message">${escapeHtml(message)}</div>
+            `;
+            document.body.appendChild(node);
+
+            setTimeout(() => node.remove(), 4800);
+        }
+
+        function applySearch() {
+            const keyword = document.getElementById('search-box').value.trim().toLowerCase();
+            state.filteredPrograms = state.programs.filter((program) => {
+                const text = [program.name, program.description, program.author, program.category].join(' ').toLowerCase();
+                return !keyword || text.includes(keyword);
+            });
+            renderPrograms();
+        }
+
+        function renderPrograms() {
+            const container = document.getElementById('programs-container');
+            const programs = state.filteredPrograms;
+            container.innerHTML = '';
+
+            if (!programs.length) {
+                container.innerHTML = '<div class="empty-state">暂无可用程序，请从本地添加或前往程序小店下载。</div>';
+                return;
+            }
+
+            programs.forEach((program) => {
+                const card = document.createElement('div');
+                card.className = 'program-card';
+
+                const meta = [
+                    program.version ? `版本 ${program.version}` : '',
+                    program.author ? `作者 ${program.author}` : '',
+                    program.category ? `分类 ${program.category}` : ''
+                ].filter(Boolean).map((text) => `<span class="meta-tag">${escapeHtml(text)}</span>`).join('');
+
+                card.innerHTML = `
+                    <div class="program-card-main">
+                        <div class="program-title">${escapeHtml(program.name)}</div>
+                        <div class="program-desc">${escapeHtml(program.description || '暂无描述')}</div>
+                        <div class="program-meta">${meta}</div>
+                    </div>
+                    <div class="program-actions">
+                        <button class="action-btn run-btn">运行</button>
+                        <button class="action-btn detail-btn">详情</button>
+                    </div>
+                `;
+
+                const runButton = card.querySelector('.run-btn');
+                const detailButton = card.querySelector('.detail-btn');
+
+                runButton.addEventListener('click', async () => {
+                    try {
+                        await ipcRenderer.invoke('run-python-script', program.path, program.requirementsPath);
+                        showNotification('启动成功', `${program.name} 已开始运行`, 'success');
+                    } catch (error) {
+                        showNotification('运行失败', error.message || '程序启动失败', 'error');
+                    }
+                });
+
+                detailButton.addEventListener('click', async () => {
+                    try {
+                        const details = await ipcRenderer.invoke('get-software-details', program.folderPath);
+                        openDetailsModal(details);
+                    } catch (error) {
+                        showNotification('打开详情失败', error.message || '无法读取说明文档', 'error');
+                    }
+                });
+
+                card.addEventListener('dblclick', () => runButton.click());
+                container.appendChild(card);
+            });
+        }
+
+        async function loadPrograms() {
+            try {
+                state.programs = await ipcRenderer.invoke('get-software-list');
+                applySearch();
+            } catch (error) {
+                showNotification('加载失败', error.message || '无法读取程序列表', 'error');
+            }
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('show');
+        }
+
+        function closeModal(node) {
+            node.classList.remove('show');
+        }
+
+        function openDetailsModal(details) {
+            document.getElementById('details-title').textContent = details.name || '详情';
+            document.getElementById('details-desc').textContent = details.description || '暂无简介';
+            const meta = [
+                details.version ? `版本：${details.version}` : '',
+                details.author ? `作者：${details.author}` : '',
+                details.category ? `分类：${details.category}` : '',
+                details.detailFileName ? `文档：${details.detailFileName}` : ''
+            ].filter(Boolean).map((text) => `<span class="meta-tag">${escapeHtml(text)}</span>`).join('');
+            document.getElementById('details-meta').innerHTML = meta;
+            document.getElementById('details-doc').innerHTML = details.markdown ? renderMarkdown(details.markdown) : '暂无文档说明。';
+            openModal('details-modal');
+        }
+
+        async function loadSettings() {
+            state.settings = await ipcRenderer.invoke('get-settings');
+            document.getElementById('auto-start-checkbox').checked = Boolean(state.settings.autoStart);
+            document.getElementById('auto-check-updates-checkbox').checked = state.settings.autoCheckUpdates !== false;
+            const softwareDir = await ipcRenderer.invoke('get-software-directory').catch(() => '');
+            document.getElementById('software-dir-input').value = softwareDir;
+        }
+
+        async function saveSettings() {
+            const nextSettings = {
+                autoStart: document.getElementById('auto-start-checkbox').checked,
+                autoCheckUpdates: document.getElementById('auto-check-updates-checkbox').checked
+            };
+            state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
+            showNotification('设置已保存', '新的设置已生效', 'success');
+            closeModal(document.getElementById('settings-modal'));
+        }
+
+        function updateAccountUI(account) {
+            state.account = { authenticated: false, canDownloadUpdates: false, user: null, ...(account || {}) };
+            const name = state.account.user?.nickname || state.account.user?.name || state.account.user?.username || '未登录';
+            document.getElementById('account-name').textContent = name;
+            document.getElementById('account-status').textContent = state.account.authenticated
+                ? (state.account.canDownloadUpdates ? '已识别 python 会员，可优先使用专属更新通道。' : '已登录，但当前账号暂无 python 会员更新权限。')
+                : '登录后可识别 python 会员并优先使用专属更新通道。';
+            document.getElementById('account-btn').classList.toggle('member', Boolean(state.account.canDownloadUpdates));
+            document.getElementById('account-login-btn').style.display = state.account.authenticated ? 'none' : 'block';
+            document.getElementById('account-refresh-btn').style.display = state.account.authenticated ? 'block' : 'none';
+            document.getElementById('account-logout-btn').style.display = state.account.authenticated ? 'block' : 'none';
+        }
+
+        async function loadAccount() {
+            try {
+                const account = await ipcRenderer.invoke('account:me');
+                updateAccountUI(account);
+            } catch (error) {
+                updateAccountUI();
+                console.error('加载账号信息失败:', error);
+            }
+        }
+
+        function updateUpdateUI() {
+            document.getElementById('update-source').textContent = state.update.source === 'object-storage' ? '专属更新通道' : '标准更新通道';
+            document.getElementById('update-source').classList.toggle('member', state.update.source === 'object-storage');
+            document.getElementById('update-message').textContent = state.update.message;
+            document.getElementById('update-progress').style.width = `${Math.max(0, Math.min(100, state.update.progress || 0))}%`;
+            document.getElementById('update-download-btn').disabled = !state.update.available;
+            document.getElementById('update-install-btn').disabled = !state.update.downloaded;
+        }
+
+        function handleUpdateStatus(payload) {
+            if (!payload) return;
+            if (payload.source) state.update.source = payload.source;
+
+            if (payload.type === 'checking') {
+                state.update.available = false;
+                state.update.downloaded = false;
+                state.update.progress = 0;
+                state.update.message = '正在检查更新...';
+            } else if (payload.type === 'available') {
+                state.update.available = true;
+                state.update.downloaded = false;
+                state.update.progress = 0;
+                state.update.message = `发现新版本 ${payload.info?.version || ''}`.trim();
+            } else if (payload.type === 'not-available') {
+                state.update.available = false;
+                state.update.downloaded = false;
+                state.update.progress = 0;
+                state.update.message = payload.message || '当前已是最新版本';
+            } else if (payload.type === 'download-progress') {
+                state.update.progress = Number(payload.progress?.percent || 0);
+                state.update.message = '正在下载更新...';
+            } else if (payload.type === 'downloaded') {
+                state.update.downloaded = true;
+                state.update.progress = 100;
+                state.update.message = payload.message || '更新已下载，可立即安装';
+            } else if (payload.type === 'error') {
+                state.update.message = payload.message || '更新失败';
+                showNotification('更新失败', state.update.message, 'error');
+            }
+
+            updateUpdateUI();
+        }
+
+        async function checkUpdate() {
+            try {
+                const result = await ipcRenderer.invoke('update:check');
+                state.update.source = result?.source || state.update.source;
+                if (result?.fallbackReason) {
+                    showNotification('已自动切换更新源', '当前通道暂不可用，已切换到标准更新通道。', 'info');
+                }
+                updateUpdateUI();
+            } catch (error) {
+                showNotification('检查更新失败', error.message || '请稍后重试', 'error');
+            }
+        }
+
+        async function downloadUpdate() {
+            try {
+                await ipcRenderer.invoke('update:download');
+            } catch (error) {
+                showNotification('下载更新失败', error.message || '请稍后重试', 'error');
+            }
+        }
+
+        async function installUpdate() {
+            try {
+                await ipcRenderer.invoke('update:install');
+            } catch (error) {
+                showNotification('安装更新失败', error.message || '请稍后重试', 'error');
+            }
+        }
+
+        async function addLocalFiles() {
+            const { response } = await remote.dialog.showMessageBox({
+                type: 'question',
+                buttons: ['添加 Python 文件', '添加文件夹', '取消'],
+                defaultId: 0,
+                cancelId: 2,
+                title: '选择添加类型',
+                message: '请选择要添加的内容类型',
+                detail: '添加 Python 文件：选择一个或多个 .py 文件\n添加文件夹：选择一个或多个完整文件夹'
+            });
+
+            if (response === 2) return;
+
+            const result = await remote.dialog.showOpenDialog({
+                properties: response === 0 ? ['openFile', 'multiSelections'] : ['openDirectory', 'multiSelections'],
+                filters: response === 0 ? [{ name: 'Python Files', extensions: ['py'] }] : []
+            });
+
+            if (result.canceled || !result.filePaths.length) return;
+
+            const softwareDirResult = await ipcRenderer.invoke('open-software-directory');
+            const softwareDir = softwareDirResult.path;
+
+            for (const sourcePath of result.filePaths) {
+                const stats = fs.statSync(sourcePath);
+                if (stats.isDirectory()) {
+                    const targetDir = uniquePath(path.join(softwareDir, path.basename(sourcePath)));
+                    fs.cpSync(sourcePath, targetDir, { recursive: true, force: true });
+                } else if (stats.isFile()) {
+                    const targetPath = uniquePath(path.join(softwareDir, path.basename(sourcePath)));
+                    fs.copyFileSync(sourcePath, targetPath);
+                }
+            }
+
+            await loadPrograms();
+            showNotification('导入完成', '本地插件已复制到应用插件目录', 'success');
+        }
+
+        function uniquePath(targetPath) {
+            if (!fs.existsSync(targetPath)) return targetPath;
+            const parsed = path.parse(targetPath);
+            let counter = 1;
+            while (true) {
+                const candidate = path.join(parsed.dir, `${parsed.name}_${counter}${parsed.ext}`);
+                if (!fs.existsSync(candidate)) return candidate;
+                counter += 1;
+            }
+        }
+
+        document.getElementById('search-box').addEventListener('input', applySearch);
+        document.getElementById('log-btn').addEventListener('click', () => ipcRenderer.invoke('show-log-window'));
+        document.getElementById('local-file-btn').addEventListener('click', addLocalFiles);
+        document.getElementById('store-btn').addEventListener('click', async () => {
+            try {
+                await ipcRenderer.invoke('shop:open-store');
+            } catch (error) {
+                shell.openExternal('https://shop.sanrenjz.com/python');
+            }
+        });
+        document.getElementById('docs-btn').addEventListener('click', () => shell.openExternal('https://docs.sanrenjz.com/'));
+        document.getElementById('contact-btn').addEventListener('click', () => openModal('contact-modal'));
+        document.getElementById('settings-btn').addEventListener('click', async () => {
+            await loadSettings();
+            openModal('settings-modal');
+        });
+        document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+        document.getElementById('open-software-dir-btn').addEventListener('click', async () => {
+            try {
+                await ipcRenderer.invoke('open-software-directory');
+                showNotification('已打开文件夹', '本地插件目录已在资源管理器中打开', 'success');
+            } catch (error) {
+                showNotification('打开失败', error.message || '无法打开本地插件目录', 'error');
+            }
+        });
+        document.getElementById('open-update-modal-btn').addEventListener('click', async () => {
+            openModal('update-modal');
+            document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
+            updateUpdateUI();
+            await checkUpdate();
+        });
+        document.getElementById('update-check-btn').addEventListener('click', checkUpdate);
+        document.getElementById('update-download-btn').addEventListener('click', downloadUpdate);
+        document.getElementById('update-install-btn').addEventListener('click', installUpdate);
+        document.getElementById('account-btn').addEventListener('click', (event) => {
+            event.stopPropagation();
+            document.getElementById('account-dropdown').classList.toggle('show');
+        });
+        document.getElementById('account-login-btn').addEventListener('click', async () => {
+            document.getElementById('account-dropdown').classList.remove('show');
+            try {
+                await ipcRenderer.invoke('account:login');
+                showNotification('已打开程序小店', '完成登录后会自动同步会员状态', 'info');
+            } catch (error) {
+                showNotification('登录失败', error.message || '无法打开登录页', 'error');
+            }
+        });
+        document.getElementById('account-refresh-btn').addEventListener('click', async () => {
+            document.getElementById('account-dropdown').classList.remove('show');
+            await loadAccount();
+            showNotification('刷新完成', '账号和会员状态已刷新', 'success');
+        });
+        document.getElementById('account-logout-btn').addEventListener('click', async () => {
+            document.getElementById('account-dropdown').classList.remove('show');
+            try {
+                await ipcRenderer.invoke('account:logout');
+                await loadAccount();
+                showNotification('已退出', '程序小店账号已退出登录', 'success');
+            } catch (error) {
+                showNotification('退出失败', error.message || '请稍后重试', 'error');
+            }
+        });
+        document.getElementById('check-update-btn').addEventListener('click', async () => {
+            document.getElementById('account-dropdown').classList.remove('show');
+            openModal('update-modal');
+            document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
+            updateUpdateUI();
+            await checkUpdate();
+        });
+        document.getElementById('open-store-dropdown-btn').addEventListener('click', async () => {
+            document.getElementById('account-dropdown').classList.remove('show');
+            try {
+                await ipcRenderer.invoke('shop:open-store');
+            } catch (error) {
+                shell.openExternal('https://shop.sanrenjz.com/python');
+            }
+        });
+
+        document.querySelectorAll('[data-close]').forEach((button) => {
+            button.addEventListener('click', () => closeModal(button.closest('.modal')));
+        });
+
+        document.querySelectorAll('.modal').forEach((modal) => {
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) closeModal(modal);
+            });
+        });
+
+        document.querySelectorAll('.settings-sidebar button').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.settings-sidebar button').forEach((item) => item.classList.remove('active'));
+                document.querySelectorAll('.settings-tab').forEach((item) => item.classList.remove('active'));
+                button.classList.add('active');
+                document.getElementById(button.dataset.tab).classList.add('active');
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('#account-menu')) {
+                document.getElementById('account-dropdown').classList.remove('show');
+            }
+        });
+
+        ipcRenderer.on('account:changed', (_event, payload) => updateAccountUI(payload));
+        ipcRenderer.on('update:status', (_event, payload) => handleUpdateStatus(payload));
+        ipcRenderer.on('plugins:download', (_event, payload) => {
+            if (payload?.type === 'started') {
+                showNotification('开始下载', `${payload.fileName || '插件包'} 正在下载`, 'info');
+            } else if (payload?.type === 'completed') {
+                const names = Array.isArray(payload.installed) ? payload.installed.map((item) => item.name).join('、') : '插件';
+                showNotification('插件已安装', `${names} 已自动解压到本地插件目录`, 'success');
+                loadPrograms();
+            } else if (payload?.type === 'error') {
+                showNotification('插件安装失败', payload.message || '请检查下载文件', 'error');
+            }
+        });
+        ipcRenderer.on('plugins:changed', () => loadPrograms());
+        ipcRenderer.on('open-settings', async () => {
+            await loadSettings();
+            openModal('settings-modal');
+        });
+        ipcRenderer.on('open-update-modal', async () => {
+            openModal('update-modal');
+            document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
+            updateUpdateUI();
+            await checkUpdate();
+        });
+
+        (async function init() {
+            try {
+                document.getElementById('current-version').textContent = await ipcRenderer.invoke('get-version');
+            } catch (_) {}
+            updateUpdateUI();
+            await Promise.all([loadPrograms(), loadAccount()]);
+            setInterval(loadPrograms, 10000);
+        })();
+    </script>
+</body>
+</html>

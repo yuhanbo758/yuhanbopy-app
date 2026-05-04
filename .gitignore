@@ -1,0 +1,64 @@
+# AI 辅助文档（仅供本地 AI 工具使用，不开源）
+AGENTS.md
+.trae/
+.git_backup_*/
+
+# 依赖与运行时
+node_modules/
+python/*
+!python/get-pip.py
+!python/requirements.txt
+python/python-3.12.8-embed-amd64/
+
+# 构建与打包输出
+dist/
+resources/
+locales/
+*.blockmap
+*.exe
+*.zip
+*.tmp
+*.temp
+
+# Electron / Chromium 运行时产物
+LICENSE.electron.txt
+LICENSES.chromium.html
+chrome_100_percent.pak
+chrome_200_percent.pak
+d3dcompiler_47.dll
+ffmpeg.dll
+icudtl.dat
+libEGL.dll
+libGLESv2.dll
+resources.pak
+snapshot_blob.bin
+v8_context_snapshot.bin
+vk_swiftshader.dll
+vk_swiftshader_icd.json
+vulkan-1.dll
+
+# 构建缓存
+build/icon.ico
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 日志文件
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量 / 密钥文件
+.env
+.env.*
+secrets.*
+*.key
+*.pem
+
+# 编辑器配置
+.vscode/
+.idea/

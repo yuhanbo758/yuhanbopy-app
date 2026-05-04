@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>运行日志</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background-color: #1e1e1e;
+            color: #fff;
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+            overflow-y: auto;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #log-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .output-line {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+
+        .error-line {
+            color: #ff4d4f;
+        }
+
+        /* 自定义滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="log-content"></div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const logContent = document.getElementById('log-content');
+
+        // 添加日志内容
+        function addLog(text, isError = false) {
+            const line = document.createElement('div');
+            line.className = `output-line ${isError ? 'error-line' : ''}`;
+            line.textContent = text;
+            logContent.appendChild(line);
+            
+            // 自动滚动到底部
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        // 清空日志
+        function clearLog() {
+            logContent.innerHTML = '';
+        }
+
+        // 监听日志消息
+        ipcRenderer.on('log-output', (event, text) => {
+            addLog(text);
+        });
+
+        ipcRenderer.on('log-error', (event, text) => {
+            addLog(text, true);
+        });
+
+        // 监听清空命令
+        ipcRenderer.on('clear-log', () => {
+            clearLog();
+        });
+    </script>
+</body>
+</html> 

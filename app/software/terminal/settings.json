@@ -1,0 +1,8 @@
+{
+    "name": "终端模拟器",
+    "description": "一个简单的终端模拟器，可以执行系统命令。",
+    "main_file": "terminal.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "系统工具"
+} 

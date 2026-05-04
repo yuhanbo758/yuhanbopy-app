@@ -1,0 +1,8 @@
+{
+    "name": "文件下载器",
+    "description": "一个通用的文件下载工具。",
+    "main_file": "file_downloader.py",
+    "version": "1.0.0",
+    "author": "余汉波",
+    "category": "下载工具"
+} 

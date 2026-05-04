@@ -1,0 +1,118 @@
+{
+  "name": "yuhanbopy-app",
+  "version": "1.0.0",
+  "description": "三人聚智-Python程序管理工具",
+  "main": "main.js",
+  "scripts": {
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; chcp 65001 > $null; electron .\"",
+    "prepare-icons": "node scripts/prepare_icons.js",
+    "build": "electron-builder",
+    "build-win": "npm run prepare-icons && electron-builder --win --x64",
+    "release-win": "npm run prepare-icons && electron-builder --win --x64 --publish always",
+    "bump-version": "node scripts/bump_version.js"
+  },
+  "author": "余汉波",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuhanbo758/yuhanbopy-app.git"
+  },
+  "dependencies": {
+    "@electron/remote": "^2.1.2",
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "electron": "^25.9.8",
+    "electron-builder": "23.6.0",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.sanrenjz.yuhanbopy",
+    "productName": "三人聚智-Python程序管理工具",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "compression": "normal",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "allowElevation": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python",
+        "filter": [
+          "**/*",
+          "!**/*.pyc",
+          "!**/__pycache__/**",
+          "!**/test/**",
+          "!**/tests/**"
+        ]
+      },
+      {
+        "from": "app",
+        "to": "app",
+        "filter": [
+          "**/*",
+          "!**/*.map",
+          "!**/__pycache__/**",
+          "!**/node_modules/**",
+          "!**/.git/**",
+          "!**/*.log"
+        ]
+      },
+      {
+        "from": "build",
+        "to": "build",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "**/*",
+      "!python/**",
+      "!app/**",
+      "!dist/**",
+      "!.github/**",
+      "!scripts/**",
+      "!node_modules/.cache/**",
+      "!**/*.map",
+      "!**/__pycache__/**"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "yuhanbo758",
+      "repo": "yuhanbopy-app",
+      "releaseType": "release"
+    },
+    "generateUpdatesFilesForAllChannels": true
+  }
+}
