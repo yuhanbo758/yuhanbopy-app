@@ -44,7 +44,11 @@ const pythonTclPath = path.join(pythonRootPath, 'tcl');
 const pythonDLLsPath = path.join(pythonRootPath, 'DLLs');
 const embeddedAppPath = path.join(appRoot, 'app');
 const settingsPath = path.join(app.getPath('userData'), SETTINGS_FILE);
+const bundledSoftwarePath = path.join(embeddedAppPath, 'software');
+const installedAppPath = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
+const persistentSoftwarePath = path.join(installedAppPath, 'plugins');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
+const { initializeSoftwareStore } = require(path.join(embeddedAppPath, 'software_store.js'));
 
 const defaultSettings = {
     autoStart: false,
@@ -133,7 +137,20 @@ function getDataUrl(filePath) {
 }
 
 function getSoftwareDir() {
-    return ensureDir(path.join(appRoot, 'app', 'software'));
+    return ensureDir(app.isPackaged ? persistentSoftwarePath : bundledSoftwarePath);
+}
+
+function prepareSoftwareStore() {
+    if (!app.isPackaged) {
+        return { persistentDir: getSoftwareDir(), migrated: [], added: [], preserved: [] };
+    }
+
+    const result = initializeSoftwareStore({
+        bundledDir: bundledSoftwarePath,
+        persistentDir: persistentSoftwarePath
+    });
+    console.log('插件目录已就绪:', result);
+    return result;
 }
 
 function getBuiltinSession() {
@@ -1331,6 +1348,7 @@ app.on('before-quit', async () => {
 app.whenReady().then(async () => {
     try {
         bindAutoUpdaterEvents();
+        prepareSoftwareStore();
         await checkPythonEnv();
         createWindow();
         cachedAccount = await loadAccountSnapshot();

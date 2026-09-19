@@ -11,7 +11,8 @@
     "release-win": "npm run prepare-icons && electron-builder --win --x64 --publish never",
     "release-mac": "npm run prepare-icons && electron-builder --mac --x64 --publish never",
     "release-linux": "npm run prepare-icons && electron-builder --linux --x64 --publish never",
-    "bump-version": "node scripts/bump_version.js"
+    "bump-version": "node scripts/bump_version.js",
+    "test-software-store": "node scripts/test_software_store.js"
   },
   "author": "余汉波",
   "license": "MIT",
@@ -95,6 +96,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "allowElevation": false,
+      "include": "build/installer.nsh",
       "artifactName": "yuhanbopy-app-${version}-win-${arch}.${ext}"
     },
     "portable": {
