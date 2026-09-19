@@ -49,10 +49,28 @@ const installedAppPath = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(pro
 const persistentSoftwarePath = path.join(installedAppPath, 'plugins');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 const { initializeSoftwareStore } = require(path.join(embeddedAppPath, 'software_store.js'));
+const {
+    createCustomRuntime,
+    createEmbeddedRuntime,
+    createPythonProcessEnv,
+    inspectPythonRuntime
+} = require(path.join(embeddedAppPath, 'python_runtime.js'));
+
+const embeddedPythonRuntime = createEmbeddedRuntime({
+    executable: pythonPath,
+    rootPath: pythonRootPath,
+    scriptsPath: pythonScriptsPath,
+    libPath: pythonLibPath,
+    sitePackagesPath: pythonSitePackagesPath,
+    dllsPath: pythonDLLsPath,
+    tclPath: pythonTclPath
+});
 
 const defaultSettings = {
     autoStart: false,
-    autoCheckUpdates: true
+    autoCheckUpdates: true,
+    pythonMode: 'embedded',
+    customPythonPath: ''
 };
 
 let mainWindow = null;
@@ -65,20 +83,10 @@ let lastCheckedUpdateInfo = null;
 let updateAvailable = false;
 let builtinSessionEventsBound = false;
 let suppressUpdaterErrors = false;
+let activePythonRuntime = embeddedPythonRuntime;
+let pythonFallbackReason = '';
 
 const runningProcesses = new Map();
-
-process.env.PATH = [pythonRootPath, pythonDLLsPath, pythonScriptsPath, process.env.PATH]
-    .filter(Boolean)
-    .join(pathDelimiter);
-
-process.env.PYTHONPATH = [pythonLibPath, pythonSitePackagesPath, embeddedAppPath]
-    .filter(Boolean)
-    .join(';');
-
-process.env.TCL_LIBRARY = path.join(pythonTclPath, 'tcl8.6');
-process.env.TK_LIBRARY = path.join(pythonTclPath, 'tk8.6');
-process.env.PYTHONHOME = pythonRootPath;
 
 function configureLoggingAndCache() {
     try {
@@ -293,8 +301,69 @@ function loadSettings() {
     return { ...defaultSettings };
 }
 
-function saveSettings(settings) {
+function getPythonProcessEnv(runtime = activePythonRuntime) {
+    return createPythonProcessEnv(runtime, {
+        baseEnv: process.env,
+        appPath: embeddedAppPath,
+        pathDelimiter
+    });
+}
+
+async function validatePythonRuntime(runtime) {
+    if (!runtime.executable || !fs.existsSync(runtime.executable)) {
+        throw new Error(`Python 解释器不存在：${runtime.executable || '未选择'}`);
+    }
+
+    if (runtime.mode === 'embedded') {
+        const criticalPaths = [runtime.libPath, runtime.scriptsPath, runtime.dllsPath];
+        for (const criticalPath of criticalPaths) {
+            ensurePathExists(criticalPath);
+        }
+    }
+
+    const info = await inspectPythonRuntime(runtime, { env: getPythonProcessEnv(runtime) });
+    return runtime.mode === 'custom' ? createCustomRuntime(runtime.executable, info) : { ...runtime, ...info };
+}
+
+async function activateConfiguredPython(settings, { allowFallback = false } = {}) {
+    const mode = settings.pythonMode === 'custom' ? 'custom' : 'embedded';
+    const requestedRuntime = mode === 'custom'
+        ? createCustomRuntime(settings.customPythonPath)
+        : embeddedPythonRuntime;
+
+    try {
+        activePythonRuntime = await validatePythonRuntime(requestedRuntime);
+        pythonFallbackReason = '';
+    } catch (error) {
+        if (!allowFallback || mode !== 'custom') {
+            throw error;
+        }
+
+        activePythonRuntime = await validatePythonRuntime(embeddedPythonRuntime);
+        pythonFallbackReason = error.message || String(error);
+        console.warn(`自定义 Python 不可用，临时使用内置环境：${pythonFallbackReason}`);
+    }
+
+    return getPythonStatus(settings);
+}
+
+function getPythonStatus(settings = loadSettings()) {
+    return {
+        configuredMode: settings.pythonMode === 'custom' ? 'custom' : 'embedded',
+        activeMode: activePythonRuntime.mode,
+        executable: activePythonRuntime.executable,
+        version: activePythonRuntime.version || '',
+        prefix: activePythonRuntime.prefix || activePythonRuntime.rootPath || '',
+        usingFallback: Boolean(pythonFallbackReason),
+        fallbackReason: pythonFallbackReason
+    };
+}
+
+async function saveSettings(settings) {
     const nextSettings = { ...loadSettings(), ...settings };
+    nextSettings.pythonMode = nextSettings.pythonMode === 'custom' ? 'custom' : 'embedded';
+    nextSettings.customPythonPath = String(nextSettings.customPythonPath || '').trim();
+    await activateConfiguredPython(nextSettings);
     ensureDir(path.dirname(settingsPath));
     fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2), 'utf8');
     app.setLoginItemSettings({ openAtLogin: Boolean(nextSettings.autoStart), path: process.execPath });
@@ -905,26 +974,14 @@ function openBuiltinBrowserWindow(url) {
 
 async function checkPythonEnv() {
     console.log('检查 Python 环境...');
-
-    if (!ensurePathExists(pythonPath)) {
-        throw new Error(`Python 解释器未找到: ${pythonPath}`);
-    }
-
-    const criticalPaths = [pythonLibPath, pythonScriptsPath, pythonDLLsPath];
-    for (const criticalPath of criticalPaths) {
-        ensurePathExists(criticalPath);
-    }
+    return activateConfiguredPython(loadSettings(), { allowFallback: true });
 }
 
-async function checkPackageInstalled(packageName) {
+async function checkPackageInstalled(packageName, runtime = activePythonRuntime) {
     return new Promise((resolve) => {
-        const checker = spawn(pythonPath, ['-c', `import ${packageName.replace(/-/g, '_')}`], {
+        const checker = spawn(runtime.executable, ['-c', `import ${packageName.replace(/-/g, '_')}`], {
             windowsHide: true,
-            env: {
-                ...process.env,
-                PYTHONPATH: pythonLibPath,
-                PYTHONIOENCODING: 'utf-8'
-            }
+            env: getPythonProcessEnv(runtime)
         });
 
         checker.on('close', (code) => resolve(code === 0));
@@ -932,7 +989,7 @@ async function checkPackageInstalled(packageName) {
     });
 }
 
-async function checkAllRequirements(requirementsPath) {
+async function checkAllRequirements(requirementsPath, runtime = activePythonRuntime) {
     try {
         const packages = fs.readFileSync(requirementsPath, 'utf8')
             .split('\n')
@@ -942,7 +999,7 @@ async function checkAllRequirements(requirementsPath) {
 
         const checks = await Promise.all(packages.map(async (pkg) => ({
             package: pkg,
-            installed: await checkPackageInstalled(pkg)
+            installed: await checkPackageInstalled(pkg, runtime)
         })));
 
         return checks.every((entry) => entry.installed);
@@ -952,8 +1009,8 @@ async function checkAllRequirements(requirementsPath) {
     }
 }
 
-async function installRequirements(requirementsPath) {
-    const allInstalled = await checkAllRequirements(requirementsPath);
+async function installRequirements(requirementsPath, runtime = activePythonRuntime) {
+    const allInstalled = await checkAllRequirements(requirementsPath, runtime);
     if (allInstalled) {
         return;
     }
@@ -963,7 +1020,7 @@ async function installRequirements(requirementsPath) {
             logWindow.webContents.send('log-output', '正在安装缺失的依赖...');
         }
 
-        const pip = spawn(pythonPath, [
+        const pip = spawn(runtime.executable, [
             '-m', 'pip', 'install',
             '--index-url', 'https://pypi.org/simple/',
             '--extra-index-url', 'https://pypi.tuna.tsinghua.edu.cn/simple/',
@@ -974,11 +1031,7 @@ async function installRequirements(requirementsPath) {
             '--trusted-host', 'mirrors.aliyun.com'
         ], {
             windowsHide: true,
-            env: {
-                ...process.env,
-                PYTHONPATH: pythonLibPath,
-                PYTHONIOENCODING: 'utf-8'
-            }
+            env: getPythonProcessEnv(runtime)
         });
 
         pip.stdout.on('data', (data) => {
@@ -1173,8 +1226,9 @@ async function runPythonScript(scriptPath, requirementsPath) {
         createLogWindow();
     }
 
+    const runtime = activePythonRuntime;
     if (requirementsPath) {
-        await installRequirements(requirementsPath);
+        await installRequirements(requirementsPath, runtime);
     }
 
     const isEncrypted = scriptPath.endsWith('.enc');
@@ -1198,12 +1252,9 @@ async function runPythonScript(scriptPath, requirementsPath) {
     }
 
     return new Promise((resolve, reject) => {
-        const childProcess = spawn(pythonPath, [finalScriptPath], {
+        const childProcess = spawn(runtime.executable, [finalScriptPath], {
             windowsHide: false,
-            env: {
-                ...process.env,
-                PYTHONIOENCODING: 'utf-8'
-            }
+            env: getPythonProcessEnv(runtime)
         });
 
         registerRunningProcess(childProcess, {
@@ -1252,6 +1303,28 @@ ipcMain.handle('get-software-details', async (_event, folderPath) => getSoftware
 ipcMain.handle('run-python-script', async (_event, scriptPath, requirementsPath) => runPythonScript(scriptPath, requirementsPath));
 ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (_event, settings) => saveSettings(settings));
+ipcMain.handle('python:get-status', () => getPythonStatus());
+ipcMain.handle('python:choose', async () => {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+        title: '选择 Python 解释器',
+        properties: ['openFile'],
+        filters: [
+            { name: 'Python 解释器', extensions: ['exe'] },
+            { name: '所有文件', extensions: ['*'] }
+        ]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+        return { canceled: true };
+    }
+
+    const runtime = await validatePythonRuntime(createCustomRuntime(result.filePaths[0]));
+    return {
+        canceled: false,
+        path: runtime.executable,
+        version: runtime.version,
+        prefix: runtime.prefix
+    };
+});
 ipcMain.handle('get-version', () => app.getVersion());
 ipcMain.handle('get-software-directory', () => getSoftwareDir());
 ipcMain.handle('assets:get-logo-data-url', () => getDataUrl(getLogoPath()));

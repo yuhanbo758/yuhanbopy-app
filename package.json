@@ -12,7 +12,8 @@
     "release-mac": "npm run prepare-icons && electron-builder --mac --x64 --publish never",
     "release-linux": "npm run prepare-icons && electron-builder --linux --x64 --publish never",
     "bump-version": "node scripts/bump_version.js",
-    "test-software-store": "node scripts/test_software_store.js"
+    "test-software-store": "node scripts/test_software_store.js",
+    "test-python-runtime": "node scripts/test_python_runtime.js"
   },
   "author": "余汉波",
   "license": "MIT",

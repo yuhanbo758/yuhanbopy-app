@@ -334,7 +334,8 @@
             align-items: center;
         }
 
-        .setting-row input[type="text"] {
+        .setting-row input[type="text"],
+        .setting-row select {
             flex: 1;
             min-width: 240px;
             height: 42px;
@@ -342,6 +343,28 @@
             border-radius: 12px;
             padding: 0 12px;
             background: #fff;
+        }
+
+        .setting-row input:disabled,
+        .setting-row button:disabled {
+            cursor: not-allowed;
+            opacity: 0.58;
+        }
+
+        .python-status {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: #eef6ff;
+            color: #31506f;
+            font-size: 13px;
+            line-height: 1.7;
+            word-break: break-all;
+        }
+
+        .python-status.warning {
+            background: #fff5e6;
+            color: #8a5700;
         }
 
         .setting-row button,
@@ -659,6 +682,7 @@
             <div class="settings-layout">
                 <div class="settings-sidebar">
                     <button class="active" data-tab="general-tab">常规设置</button>
+                    <button data-tab="python-tab">Python 环境</button>
                     <button data-tab="update-tab">更新设置</button>
                 </div>
                 <div class="settings-main">
@@ -675,11 +699,35 @@
                         </div>
                         <div class="setting-card">
                             <h3>本地插件目录</h3>
-                            <p class="setting-help">程序小店下载的插件会自动解压到 `app/software`，程序会自动读取该目录中的所有插件。</p>
+                            <p class="setting-help">程序小店下载的插件会自动解压到安装目录下的 `plugins`，程序会自动读取该目录中的所有插件。</p>
                             <div class="setting-row">
                                 <input type="text" id="software-dir-input" readonly>
                                 <button id="open-software-dir-btn">打开本地插件文件夹</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-tab" id="python-tab">
+                        <h2 class="section-title">Python 环境</h2>
+                        <p class="section-desc">默认使用程序自带的 Python；也可以选择已有环境，直接复用其中已经安装的第三方库。</p>
+                        <div class="setting-card">
+                            <h3>运行环境</h3>
+                            <p class="setting-help">切换后只影响新启动的插件，已经运行的插件不会被中断。</p>
+                            <div class="setting-row">
+                                <select id="python-mode-select">
+                                    <option value="embedded">内置 Python（默认）</option>
+                                    <option value="custom">自定义 Python</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="setting-card">
+                            <h3>自定义解释器</h3>
+                            <p class="setting-help">请选择 Python 3 的 `python.exe`。程序会验证解释器，并使用该环境检查和安装插件依赖。</p>
+                            <div class="setting-row">
+                                <input type="text" id="custom-python-path-input" placeholder="请选择 python.exe" readonly>
+                                <button id="choose-python-btn">选择 Python</button>
+                            </div>
+                            <div class="python-status" id="python-status">正在读取 Python 环境...</div>
                         </div>
                     </div>
 
@@ -752,7 +800,9 @@
             filteredPrograms: [],
             settings: {
                 autoStart: false,
-                autoCheckUpdates: true
+                autoCheckUpdates: true,
+                pythonMode: 'embedded',
+                customPythonPath: ''
             },
             account: {
                 authenticated: false,
@@ -1002,18 +1052,50 @@
             state.settings = await ipcRenderer.invoke('get-settings');
             document.getElementById('auto-start-checkbox').checked = Boolean(state.settings.autoStart);
             document.getElementById('auto-check-updates-checkbox').checked = state.settings.autoCheckUpdates !== false;
+            document.getElementById('python-mode-select').value = state.settings.pythonMode === 'custom' ? 'custom' : 'embedded';
+            document.getElementById('custom-python-path-input').value = state.settings.customPythonPath || '';
+            updatePythonControls();
+            const pythonStatus = await ipcRenderer.invoke('python:get-status').catch((error) => ({
+                usingFallback: true,
+                fallbackReason: error.message || '无法读取 Python 环境状态'
+            }));
+            renderPythonStatus(pythonStatus);
             const softwareDir = await ipcRenderer.invoke('get-software-directory').catch(() => '');
             document.getElementById('software-dir-input').value = softwareDir;
+        }
+
+        function updatePythonControls() {
+            const customEnabled = document.getElementById('python-mode-select').value === 'custom';
+            document.getElementById('custom-python-path-input').disabled = !customEnabled;
+            document.getElementById('choose-python-btn').disabled = !customEnabled;
+        }
+
+        function renderPythonStatus(status) {
+            const statusNode = document.getElementById('python-status');
+            statusNode.classList.toggle('warning', Boolean(status?.usingFallback));
+            if (status?.usingFallback) {
+                statusNode.textContent = `自定义环境不可用，当前临时使用内置 Python。原因：${status.fallbackReason || '未知'}`;
+                return;
+            }
+            const modeName = status?.activeMode === 'custom' ? '自定义 Python' : '内置 Python';
+            const version = status?.version ? `Python ${status.version}` : '版本检测中';
+            statusNode.textContent = `${modeName} · ${version} · ${status?.executable || '未找到解释器'}`;
         }
 
         async function saveSettings() {
             const nextSettings = {
                 autoStart: document.getElementById('auto-start-checkbox').checked,
-                autoCheckUpdates: document.getElementById('auto-check-updates-checkbox').checked
+                autoCheckUpdates: document.getElementById('auto-check-updates-checkbox').checked,
+                pythonMode: document.getElementById('python-mode-select').value,
+                customPythonPath: document.getElementById('custom-python-path-input').value.trim()
             };
-            state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
-            showNotification('设置已保存', '新的设置已生效', 'success');
-            closeModal(document.getElementById('settings-modal'));
+            try {
+                state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
+                showNotification('设置已保存', '新的 Python 环境会用于之后启动的插件', 'success');
+                closeModal(document.getElementById('settings-modal'));
+            } catch (error) {
+                showNotification('保存失败', error.message || 'Python 环境验证失败', 'error');
+            }
         }
 
         function updateAccountUI(account) {
@@ -1188,6 +1270,22 @@
             openModal('settings-modal');
         });
         document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+        document.getElementById('python-mode-select').addEventListener('change', updatePythonControls);
+        document.getElementById('choose-python-btn').addEventListener('click', async () => {
+            try {
+                const result = await ipcRenderer.invoke('python:choose');
+                if (result?.canceled) return;
+                document.getElementById('custom-python-path-input').value = result.path || '';
+                renderPythonStatus({
+                    activeMode: 'custom',
+                    executable: result.path,
+                    version: result.version,
+                    usingFallback: false
+                });
+            } catch (error) {
+                showNotification('选择失败', error.message || '所选 Python 环境不可用', 'error');
+            }
+        });
         document.getElementById('open-software-dir-btn').addEventListener('click', async () => {
             try {
                 await ipcRenderer.invoke('open-software-directory');
