@@ -12,6 +12,7 @@ python/python-3.12.8-embed-amd64/
 # 构建与打包输出
 dist/
 resources/
+plugin-configs/
 locales/
 *.blockmap
 *.exe

@@ -22,6 +22,8 @@
 - 🔄 双源自动更新（对象存储会员专属源 + GitHub Releases 双重保障）
 - 🏪 内置程序小店浏览器，一键下载 ZIP 插件自动解压安装
 - 🐍 Python 环境可切换，默认使用内置环境，也可复用用户已有环境及其第三方库
+- 🎨 按插件功能生成 PNG/ICO 专属图标，并在卡片、窗口和 Windows 任务栏中区分插件
+- 🗂️ 插件用户配置集中保存到可自定义目录，插件包只携带无隐私的默认配置
 - ⚙️ 设置面板，支持会员账号、更新源、Python 环境和插件管理配置
 
 ---
@@ -94,6 +96,10 @@ yuhanbopy-lh/
 │
 ├── app/
 │   ├── python_runtime.js     # 内置/自定义 Python 环境管理
+│   ├── plugin_logo.js        # 插件语义 Logo 与 Windows ICO 生成
+│   ├── plugin_bootstrap.py   # tkinter 图标注入与任务栏身份设置
+│   ├── plugin_config.js      # 插件默认配置初始化、集中存储与目录迁移
+│   ├── plugin_config_runtime.py # Python 插件统一配置读写接口
 │   └── software/             # 内置 Python 插件目录
 │       ├── cos_downloader/   # 腾讯云 COS 下载器
 │       ├── file_downloader/  # 通用文件下载器
@@ -119,9 +125,13 @@ yuhanbopy-lh/
   "main_file": "main.py",
   "version": "1.0.0",
   "author": "作者名",
-  "category": "工具分类"
+  "category": "工具分类",
+  "logo": "logo.png",
+  "config_file": "config.json"
 }
 ```
+
+插件包内 `config.json` 只保存可公开默认值。首次加载时主程序会复制到设置页指定的“插件用户配置目录”；以后插件通过 `plugin_config_runtime.load_config/save_config` 读写用户副本，不再把账号、Token、Cookie 或本机路径写回插件目录。默认目录是安装目录或便携版 EXE 同级的 `plugin-configs/`。
 
 ### 入口文件（三种格式之一）
 

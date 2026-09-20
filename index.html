@@ -345,6 +345,22 @@
             background: #fff;
         }
 
+        .program-heading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .program-logo {
+            width: 46px;
+            height: 46px;
+            flex: 0 0 46px;
+            border-radius: 12px;
+            object-fit: contain;
+            box-shadow: 0 6px 14px rgba(20, 54, 90, 0.16);
+        }
+
         .setting-row input:disabled,
         .setting-row button:disabled {
             cursor: not-allowed;
@@ -721,6 +737,16 @@
                             </div>
                         </div>
                         <div class="setting-card">
+                            <h3>插件用户配置目录</h3>
+                            <p class="setting-help">插件包内配置只作为首次加载模板。账号、密钥、路径等用户修改统一保存在此目录，分享或升级插件时不会随插件文件泄漏。</p>
+                            <div class="setting-row">
+                                <input type="text" id="plugin-config-dir-input" placeholder="默认位于安装目录下的 plugin-configs" readonly>
+                                <button id="choose-plugin-config-dir-btn">选择目录</button>
+                                <button id="reset-plugin-config-dir-btn">恢复默认</button>
+                                <button id="open-plugin-config-dir-btn">打开目录</button>
+                            </div>
+                        </div>
+                        <div class="setting-card">
                             <h3>自定义解释器</h3>
                             <p class="setting-help">请选择 Python 3 的 `python.exe`。程序会验证解释器，并使用该环境检查和安装插件依赖。</p>
                             <div class="setting-row">
@@ -802,7 +828,8 @@
                 autoStart: false,
                 autoCheckUpdates: true,
                 pythonMode: 'embedded',
-                customPythonPath: ''
+                customPythonPath: '',
+                customPluginConfigDir: ''
             },
             account: {
                 authenticated: false,
@@ -981,7 +1008,10 @@
 
                 card.innerHTML = `
                     <div class="program-card-main">
-                        <div class="program-title">${escapeHtml(program.name)}</div>
+                        <div class="program-heading">
+                            <img class="program-logo" alt="">
+                            <div class="program-title">${escapeHtml(program.name)}</div>
+                        </div>
                         <div class="program-desc">${escapeHtml(program.description || '暂无描述')}</div>
                         <div class="program-meta">${meta}</div>
                     </div>
@@ -993,10 +1023,19 @@
 
                 const runButton = card.querySelector('.run-btn');
                 const detailButton = card.querySelector('.detail-btn');
+                const logo = card.querySelector('.program-logo');
+                if (program.logoDataUrl) logo.src = program.logoDataUrl;
 
                 runButton.addEventListener('click', async () => {
                     try {
-                        await ipcRenderer.invoke('run-python-script', program.path, program.requirementsPath);
+                        await ipcRenderer.invoke(
+                            'run-python-script',
+                            program.path,
+                            program.requirementsPath,
+                            program.logoPath,
+                            program.taskbarIconPath,
+                            program.pluginAppId
+                        );
                         showNotification('启动成功', `${program.name} 已开始运行`, 'success');
                     } catch (error) {
                         showNotification('运行失败', error.message || '程序启动失败', 'error');
@@ -1054,6 +1093,9 @@
             document.getElementById('auto-check-updates-checkbox').checked = state.settings.autoCheckUpdates !== false;
             document.getElementById('python-mode-select').value = state.settings.pythonMode === 'custom' ? 'custom' : 'embedded';
             document.getElementById('custom-python-path-input').value = state.settings.customPythonPath || '';
+            const configDirInput = document.getElementById('plugin-config-dir-input');
+            configDirInput.value = await ipcRenderer.invoke('plugin-config:get-directory').catch(() => '');
+            configDirInput.dataset.customPath = state.settings.customPluginConfigDir || '';
             updatePythonControls();
             const pythonStatus = await ipcRenderer.invoke('python:get-status').catch((error) => ({
                 usingFallback: true,
@@ -1087,11 +1129,12 @@
                 autoStart: document.getElementById('auto-start-checkbox').checked,
                 autoCheckUpdates: document.getElementById('auto-check-updates-checkbox').checked,
                 pythonMode: document.getElementById('python-mode-select').value,
-                customPythonPath: document.getElementById('custom-python-path-input').value.trim()
+                customPythonPath: document.getElementById('custom-python-path-input').value.trim(),
+                customPluginConfigDir: document.getElementById('plugin-config-dir-input').dataset.customPath || ''
             };
             try {
                 state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
-                showNotification('设置已保存', '新的 Python 环境会用于之后启动的插件', 'success');
+                showNotification('设置已保存', 'Python 环境和插件配置目录会用于之后启动的插件', 'success');
                 closeModal(document.getElementById('settings-modal'));
             } catch (error) {
                 showNotification('保存失败', error.message || 'Python 环境验证失败', 'error');
@@ -1292,6 +1335,30 @@
                 showNotification('已打开文件夹', '本地插件目录已在资源管理器中打开', 'success');
             } catch (error) {
                 showNotification('打开失败', error.message || '无法打开本地插件目录', 'error');
+            }
+        });
+        document.getElementById('choose-plugin-config-dir-btn').addEventListener('click', async () => {
+            try {
+                const result = await ipcRenderer.invoke('plugin-config:choose-directory');
+                if (!result?.canceled) {
+                    const input = document.getElementById('plugin-config-dir-input');
+                    input.value = result.path || '';
+                    input.dataset.customPath = result.path || '';
+                }
+            } catch (error) {
+                showNotification('选择失败', error.message || '无法选择插件配置目录', 'error');
+            }
+        });
+        document.getElementById('reset-plugin-config-dir-btn').addEventListener('click', async () => {
+            const input = document.getElementById('plugin-config-dir-input');
+            input.dataset.customPath = '';
+            input.value = await ipcRenderer.invoke('plugin-config:get-default-directory').catch(() => '');
+        });
+        document.getElementById('open-plugin-config-dir-btn').addEventListener('click', async () => {
+            try {
+                await ipcRenderer.invoke('plugin-config:open-directory');
+            } catch (error) {
+                showNotification('打开失败', error.message || '无法打开插件配置目录', 'error');
             }
         });
         document.getElementById('open-update-modal-btn').addEventListener('click', async () => {
