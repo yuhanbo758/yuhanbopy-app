@@ -69,7 +69,9 @@ yuhanbopy-lh/
 ### 插件（软件）目录规范
 
 每个 `app/software/<name>/` 插件须包含：
-- `settings.json` — 插件元数据（name, description, main_file, version, author, category），其中 `description` 仅保留一句简介
+- `settings.json` — 插件元数据（name, description, main_file, version, author, category, logo, config_file），其中 `description` 仅保留一句简介
+- `logo.png` / `logo.ico` — 卡片与 Windows 窗口/任务栏专属图标
+- `config.json` — 只包含可公开默认值；真实用户配置统一保存在主程序设置指定目录
 - `README.md` — 插件功能介绍、使用方法、配置说明与注意事项
 - `<main_file>.py` 或 `<main_file>.enc`（加密版）或 ZIP 包 — 入口文件
 
@@ -83,6 +85,8 @@ yuhanbopy-lh/
 | 软件管理器 | `app/software_manager.js` | 封装 Python 进程的运行/停止/清理，用 Map 管理多进程生命周期 |
 | 主界面 | `index.html` | 程序卡片列表、详情弹窗、设置面板、账号状态、更新面板 |
 | Python 环境管理 | `app/python_runtime.js` | 内置/自定义解释器校验与隔离的子进程环境变量构建 |
+| 插件视觉身份 | `app/plugin_logo.js`, `app/plugin_bootstrap.py` | 语义 Logo、Windows ICO、tkinter 图标注入和独立任务栏分组 |
+| 插件配置管理 | `app/plugin_config.js`, `app/plugin_config_runtime.py` | 首次复制默认配置、集中保存用户配置、自定义目录迁移与 Python 原子读写 |
 | 日志窗口 | `log.html` | 显示 Python 子进程 stdout/stderr，深色终端风格 |
 | 内置下载器 | `app/software/cos_downloader/` | 从腾讯云 COS 下载插件文件 |
 | 内置下载器 | `app/software/file_downloader/` | 通用 URL 文件下载 |
@@ -105,6 +109,7 @@ yuhanbopy-lh/
 - **GUI 框架**：使用 tkinter / ttk，无需额外安装
 - **路径探测**：使用 `possible_paths` 列表遍历方式适配开发/打包环境
 - **依赖管理**：每个插件可有独立 `requirements.txt`，主进程运行前自动 pip 安装缺失包
+- **依赖复用**：插件需要额外运行环境时，必须先检查主程序当前选中的 Python 是否已能加载所需模块；检查通过就直接复用。只有缺失或不兼容时才安装插件私有依赖，并通过依赖指纹避免重复下载、清理已经移除的旧依赖
 - **pip 源策略**：pypi.org 官方源优先，自动 fallback 到清华源、阿里云源
 - **文档约定**：插件详细说明统一写入 `README.md`，`settings.json.description` 只用于列表简述
 
@@ -188,6 +193,18 @@ npm run release-linux
 - **背景：** 用户已有 Python 环境可能包含大量第三方库，不应要求在内置环境中重复安装。
 - **结果：** 每个 Python 子进程按当前运行环境独立构造环境变量，自定义环境不继承内置 `PYTHONHOME` 和 `site-packages`；自定义解释器失效时临时回退内置环境并在设置页提示。
 
+### ADR-007：插件专属任务栏图标
+
+- **决策：** 每个插件同时生成 `logo.png` 与 `logo.ico`；主程序优先用 `pythonw.exe` 启动，并在创建 Tk 窗口前设置独立 AppUserModelID，创建后同时设置 PNG、默认 ICO 和当前窗口 ICO。
+- **背景：** 仅设置 tkinter PNG 时，Windows 任务栏可能继续使用 `python.exe` 的默认图标。
+- **结果：** 每个插件窗口拥有自己的 Windows 图标句柄和任务栏分组。
+
+### ADR-008：插件用户配置集中存储
+
+- **决策：** 插件包内 `config.json` 仅作为无隐私默认模板；首次加载复制到安装目录同级 `plugin-configs/<插件目录名>.json`，设置页允许更换目录。
+- **背景：** 配置、Token 和浏览器 Cookie 放在插件目录会导致分享插件时泄漏隐私。
+- **结果：** 插件通过 `YUHANBOPY_PLUGIN_CONFIG_FILE` 读写用户副本；NSIS 升级备份和恢复默认配置目录。
+
 ---
 
 ## 已知问题与注意事项
@@ -219,3 +236,4 @@ npm run release-linux
 | 2026-05-05 | 调整 CI 为次版本号自动递增、三平台构建、统一 Release 资产命名并过滤调试资产；账号头像改为打包内 logo data URL 并为登录用户显示会员标识 | `.github/workflows/release.yml`, `package.json`, `scripts/`, `main.js`, `index.html` |
 | 2026-09-19 | 将插件迁移至安装目录下的独立 `plugins` 并与应用升级隔离；新版本只补充本地缺少的内置插件，不覆盖已有同名插件 | `main.js`, `app/software_store.js`, `build/installer.nsh`, `package.json` |
 | 2026-09-20 | 设置页新增内置/自定义 Python 环境切换，统一解释器校验、依赖安装和插件运行环境 | `main.js`, `index.html`, `app/python_runtime.js`, `scripts/test_python_runtime.js` |
+| 2026-09-20 | 修复插件 Windows 任务栏图标，新增可自定义的统一用户配置目录 | `main.js`, `index.html`, `app/plugin_*`, `app/software/`, `build/installer.nsh` |

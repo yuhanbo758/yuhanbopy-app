@@ -45,10 +45,20 @@ const pythonDLLsPath = path.join(pythonRootPath, 'DLLs');
 const embeddedAppPath = path.join(appRoot, 'app');
 const settingsPath = path.join(app.getPath('userData'), SETTINGS_FILE);
 const bundledSoftwarePath = path.join(embeddedAppPath, 'software');
-const installedAppPath = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
+const installedAppPath = app.isPackaged
+    ? (process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath))
+    : __dirname;
 const persistentSoftwarePath = path.join(installedAppPath, 'plugins');
+const pluginLogoCachePath = path.join(app.getPath('userData'), 'plugin-logos');
+const pluginBootstrapPath = path.join(embeddedAppPath, 'plugin_bootstrap.py');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 const { initializeSoftwareStore } = require(path.join(embeddedAppPath, 'software_store.js'));
+const { createPluginAppId, ensurePluginLogo } = require(path.join(embeddedAppPath, 'plugin_logo.js'));
+const {
+    copyMissingPluginConfigs,
+    getPluginConfigRoot,
+    preparePluginConfig
+} = require(path.join(embeddedAppPath, 'plugin_config.js'));
 const {
     createCustomRuntime,
     createEmbeddedRuntime,
@@ -70,7 +80,8 @@ const defaultSettings = {
     autoStart: false,
     autoCheckUpdates: true,
     pythonMode: 'embedded',
-    customPythonPath: ''
+    customPythonPath: '',
+    customPluginConfigDir: ''
 };
 
 let mainWindow = null;
@@ -140,12 +151,52 @@ function getDataUrl(filePath) {
     }
 
     const extension = path.extname(filePath).toLowerCase();
-    const mimeType = extension === '.svg' ? 'image/svg+xml' : 'image/png';
+    const mimeTypes = {
+        '.gif': 'image/gif',
+        '.ico': 'image/x-icon',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.svg': 'image/svg+xml'
+    };
+    const mimeType = mimeTypes[extension] || 'application/octet-stream';
     return `data:${mimeType};base64,${fs.readFileSync(filePath).toString('base64')}`;
+}
+
+function addProgramVisual(program, settings = {}, cacheOnly = false) {
+    try {
+        const result = ensurePluginLogo({
+            folderPath: program.folderPath,
+            settings,
+            mainFilePath: program.path,
+            cacheDir: pluginLogoCachePath,
+            cacheOnly
+        });
+        return {
+            ...program,
+            logoPath: result.logoPath,
+            taskbarIconPath: result.taskbarIconPath || result.logoPath,
+            logoDataUrl: getDataUrl(result.logoPath),
+            pluginAppId: createPluginAppId(cacheOnly ? program.path : program.folderPath)
+        };
+    } catch (error) {
+        console.warn(`生成插件 Logo 失败 ${program.path}:`, error.message || error);
+        return {
+            ...program,
+            logoPath: '',
+            taskbarIconPath: getIconPath() || '',
+            logoDataUrl: getDataUrl(getLogoPath()),
+            pluginAppId: createPluginAppId(cacheOnly ? program.path : program.folderPath)
+        };
+    }
 }
 
 function getSoftwareDir() {
     return ensureDir(app.isPackaged ? persistentSoftwarePath : bundledSoftwarePath);
+}
+
+function getCurrentPluginConfigRoot(settings = loadSettings()) {
+    return ensureDir(getPluginConfigRoot(settings, installedAppPath));
 }
 
 function prepareSoftwareStore() {
@@ -360,10 +411,15 @@ function getPythonStatus(settings = loadSettings()) {
 }
 
 async function saveSettings(settings) {
-    const nextSettings = { ...loadSettings(), ...settings };
+    const previousSettings = loadSettings();
+    const previousConfigRoot = getPluginConfigRoot(previousSettings, installedAppPath);
+    const nextSettings = { ...previousSettings, ...settings };
     nextSettings.pythonMode = nextSettings.pythonMode === 'custom' ? 'custom' : 'embedded';
     nextSettings.customPythonPath = String(nextSettings.customPythonPath || '').trim();
+    nextSettings.customPluginConfigDir = String(nextSettings.customPluginConfigDir || '').trim();
+    const nextConfigRoot = getPluginConfigRoot(nextSettings, installedAppPath);
     await activateConfiguredPython(nextSettings);
+    copyMissingPluginConfigs(previousConfigRoot, nextConfigRoot);
     ensureDir(path.dirname(settingsPath));
     fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2), 'utf8');
     app.setLoginItemSettings({ openAtLogin: Boolean(nextSettings.autoStart), path: process.execPath });
@@ -1126,7 +1182,12 @@ function getProgramInfo(folderPath) {
             const mainFilePath = path.join(folderPath, settings.main_file);
             const requirementsPath = path.join(folderPath, 'requirements.txt');
             if (fs.existsSync(mainFilePath)) {
-                return [{
+                const config = preparePluginConfig({
+                    folderPath,
+                    settings,
+                    configRoot: getCurrentPluginConfigRoot()
+                });
+                return [addProgramVisual({
                     name: settings.name || path.basename(folderPath),
                     description: settings.description || '双击运行此程序',
                     path: mainFilePath,
@@ -1136,8 +1197,9 @@ function getProgramInfo(folderPath) {
                     version: settings.version || '',
                     author: settings.author || '',
                     category: settings.category || '',
+                    configPath: config.configPath,
                     requirementsPath: fs.existsSync(requirementsPath) ? requirementsPath : null
-                }];
+                }, settings)];
             }
         } catch (error) {
             console.error(`读取 settings.json 失败 ${folderPath}:`, error);
@@ -1149,7 +1211,7 @@ function getProgramInfo(folderPath) {
         .filter((file) => file.endsWith('.py') || file.endsWith('.enc'))
         .map((file) => {
             const isEncrypted = file.endsWith('.enc');
-            return {
+            return addProgramVisual({
                 name: path.basename(file, isEncrypted ? '.enc' : '.py'),
                 description: isEncrypted ? '加密程序，双击运行' : '双击运行此程序',
                 path: path.join(folderPath, file),
@@ -1160,7 +1222,7 @@ function getProgramInfo(folderPath) {
                 author: '',
                 category: '',
                 requirementsPath: fs.existsSync(requirementsPath) ? requirementsPath : null
-            };
+            }, {}, true);
         });
 }
 
@@ -1179,7 +1241,7 @@ async function getSoftwareList() {
             programs = programs.concat(getProgramInfo(itemPath));
         } else if (item.isFile() && (item.name.endsWith('.py') || item.name.endsWith('.enc'))) {
             const isEncrypted = item.name.endsWith('.enc');
-            programs.push({
+            programs.push(addProgramVisual({
                 name: path.basename(item.name, isEncrypted ? '.enc' : '.py'),
                 description: isEncrypted ? '加密程序，双击运行' : '双击运行此程序',
                 path: itemPath,
@@ -1190,7 +1252,7 @@ async function getSoftwareList() {
                 author: '',
                 category: '',
                 requirementsPath: null
-            });
+            }, {}, true));
         }
     }
 
@@ -1221,12 +1283,33 @@ async function getSoftwareDetails(folderPath) {
     };
 }
 
-async function runPythonScript(scriptPath, requirementsPath) {
+function getPluginConfigForScript(scriptPath) {
+    const folderPath = path.dirname(scriptPath);
+    const settingsJsonPath = path.join(folderPath, 'settings.json');
+    let settings = {};
+    if (fs.existsSync(settingsJsonPath)) {
+        settings = JSON.parse(fs.readFileSync(settingsJsonPath, 'utf8'));
+    }
+    return preparePluginConfig({
+        folderPath,
+        settings,
+        configRoot: getCurrentPluginConfigRoot()
+    });
+}
+
+function getPythonLauncher(runtime) {
+    if (process.platform !== 'win32') return runtime.executable;
+    const pythonwPath = path.join(path.dirname(runtime.executable), 'pythonw.exe');
+    return fs.existsSync(pythonwPath) ? pythonwPath : runtime.executable;
+}
+
+async function runPythonScript(scriptPath, requirementsPath, logoPath = '', taskbarIconPath = '', pluginAppId = '') {
     if (!logWindow || logWindow.isDestroyed()) {
         createLogWindow();
     }
 
     const runtime = activePythonRuntime;
+    const pluginConfig = getPluginConfigForScript(scriptPath);
     if (requirementsPath) {
         await installRequirements(requirementsPath, runtime);
     }
@@ -1252,9 +1335,24 @@ async function runPythonScript(scriptPath, requirementsPath) {
     }
 
     return new Promise((resolve, reject) => {
-        const childProcess = spawn(runtime.executable, [finalScriptPath], {
+        const launchArgs = fs.existsSync(pluginBootstrapPath)
+            ? [
+                pluginBootstrapPath,
+                '--script', finalScriptPath,
+                '--logo', logoPath && fs.existsSync(logoPath) ? logoPath : '',
+                '--icon', taskbarIconPath && fs.existsSync(taskbarIconPath) ? taskbarIconPath : '',
+                '--config', pluginConfig.configPath,
+                '--config-dir', pluginConfig.configRoot,
+                '--app-id', pluginAppId || createPluginAppId(path.dirname(scriptPath))
+            ]
+            : [finalScriptPath];
+        const childProcess = spawn(getPythonLauncher(runtime), launchArgs, {
             windowsHide: false,
-            env: getPythonProcessEnv(runtime)
+            env: {
+                ...getPythonProcessEnv(runtime),
+                YUHANBOPY_PLUGIN_CONFIG_FILE: pluginConfig.configPath,
+                YUHANBOPY_PLUGIN_CONFIG_DIR: pluginConfig.configRoot
+            }
         });
 
         registerRunningProcess(childProcess, {
@@ -1300,9 +1398,22 @@ ipcMain.handle('show-log-window', () => {
 
 ipcMain.handle('get-software-list', async () => getSoftwareList());
 ipcMain.handle('get-software-details', async (_event, folderPath) => getSoftwareDetails(folderPath));
-ipcMain.handle('run-python-script', async (_event, scriptPath, requirementsPath) => runPythonScript(scriptPath, requirementsPath));
+ipcMain.handle('run-python-script', async (_event, scriptPath, requirementsPath, logoPath, taskbarIconPath, pluginAppId) => (
+    runPythonScript(scriptPath, requirementsPath, logoPath, taskbarIconPath, pluginAppId)
+));
 ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (_event, settings) => saveSettings(settings));
+ipcMain.handle('plugin-config:get-directory', () => getCurrentPluginConfigRoot());
+ipcMain.handle('plugin-config:get-default-directory', () => getPluginConfigRoot({}, installedAppPath));
+ipcMain.handle('plugin-config:choose-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+        title: '选择插件用户配置目录',
+        defaultPath: getCurrentPluginConfigRoot(),
+        properties: ['openDirectory', 'createDirectory']
+    });
+    return result.canceled ? { canceled: true } : { canceled: false, path: result.filePaths[0] };
+});
+ipcMain.handle('plugin-config:open-directory', () => shell.openPath(getCurrentPluginConfigRoot()));
 ipcMain.handle('python:get-status', () => getPythonStatus());
 ipcMain.handle('python:choose', async () => {
     const result = await dialog.showOpenDialog(mainWindow || undefined, {
