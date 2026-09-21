@@ -65,9 +65,24 @@ function copyMissingPluginConfigs(sourceRoot, targetRoot) {
     return copied;
 }
 
+function savePluginConfigDirectory({ settingsPath, appSettings = {}, installedAppPath, customPluginConfigDir }) {
+    const previousConfigRoot = getPluginConfigRoot(appSettings, installedAppPath);
+    const nextSettings = {
+        ...appSettings,
+        customPluginConfigDir: String(customPluginConfigDir || '').trim()
+    };
+    const nextConfigRoot = getPluginConfigRoot(nextSettings, installedAppPath);
+
+    copyMissingPluginConfigs(previousConfigRoot, nextConfigRoot);
+    ensureDir(path.dirname(settingsPath));
+    fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2), 'utf8');
+    return { settings: nextSettings, directory: nextConfigRoot };
+}
+
 module.exports = {
     copyMissingPluginConfigs,
     getPluginConfigRoot,
     preparePluginConfig,
+    savePluginConfigDirectory,
     safePluginId
 };

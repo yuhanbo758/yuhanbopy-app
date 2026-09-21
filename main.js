@@ -57,7 +57,8 @@ const { createPluginAppId, ensurePluginLogo } = require(path.join(embeddedAppPat
 const {
     copyMissingPluginConfigs,
     getPluginConfigRoot,
-    preparePluginConfig
+    preparePluginConfig,
+    savePluginConfigDirectory
 } = require(path.join(embeddedAppPath, 'plugin_config.js'));
 const {
     createCustomRuntime,
@@ -1413,7 +1414,19 @@ ipcMain.handle('plugin-config:choose-directory', async () => {
     });
     return result.canceled ? { canceled: true } : { canceled: false, path: result.filePaths[0] };
 });
-ipcMain.handle('plugin-config:open-directory', () => shell.openPath(getCurrentPluginConfigRoot()));
+ipcMain.handle('plugin-config:save-directory', (_event, customPluginConfigDir) => (
+    savePluginConfigDirectory({
+        settingsPath,
+        appSettings: loadSettings(),
+        installedAppPath,
+        customPluginConfigDir
+    })
+));
+ipcMain.handle('plugin-config:open-directory', (_event, requestedDirectory) => {
+    const requestedPath = String(requestedDirectory || '').trim();
+    const targetPath = requestedPath ? ensureDir(path.resolve(requestedPath)) : getCurrentPluginConfigRoot();
+    return shell.openPath(targetPath);
+});
 ipcMain.handle('python:get-status', () => getPythonStatus());
 ipcMain.handle('python:choose', async () => {
     const result = await dialog.showOpenDialog(mainWindow || undefined, {

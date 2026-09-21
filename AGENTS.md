@@ -237,3 +237,4 @@ npm run release-linux
 | 2026-09-19 | 将插件迁移至安装目录下的独立 `plugins` 并与应用升级隔离；新版本只补充本地缺少的内置插件，不覆盖已有同名插件 | `main.js`, `app/software_store.js`, `build/installer.nsh`, `package.json` |
 | 2026-09-20 | 设置页新增内置/自定义 Python 环境切换，统一解释器校验、依赖安装和插件运行环境 | `main.js`, `index.html`, `app/python_runtime.js`, `scripts/test_python_runtime.js` |
 | 2026-09-20 | 修复插件 Windows 任务栏图标，新增可自定义的统一用户配置目录 | `main.js`, `index.html`, `app/plugin_*`, `app/software/`, `build/installer.nsh` |
+| 2026-09-21 | 将插件用户配置目录移至常规设置并增加独立保存，修复选择目录后重启恢复旧值 | `main.js`, `index.html`, `app/plugin_config.js`, `scripts/test_plugin_config.js` |

@@ -291,6 +291,8 @@
         .settings-main {
             padding: 28px 28px 24px;
             min-width: 0;
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
         }
 
         .settings-tab { display: none; }
@@ -704,7 +706,7 @@
                 <div class="settings-main">
                     <div class="settings-tab active" id="general-tab">
                         <h2 class="section-title">常规设置</h2>
-                        <p class="section-desc">管理开机启动、本地插件目录和程序小店下载插件的安装位置。</p>
+                        <p class="section-desc">管理开机启动、插件安装位置和插件用户配置的保存位置。</p>
                         <div class="setting-card">
                             <h3>开机自启动</h3>
                             <p class="setting-help">启用后，Windows 登录时自动启动当前应用。</p>
@@ -721,6 +723,17 @@
                                 <button id="open-software-dir-btn">打开本地插件文件夹</button>
                             </div>
                         </div>
+                        <div class="setting-card">
+                            <h3>插件用户配置目录</h3>
+                            <p class="setting-help">插件包内配置只作为首次加载模板。账号、密钥、路径等用户修改统一保存在此目录，分享或升级插件时不会随插件文件泄漏。</p>
+                            <div class="setting-row">
+                                <input type="text" id="plugin-config-dir-input" placeholder="默认位于安装目录下的 plugin-configs" readonly>
+                                <button id="choose-plugin-config-dir-btn">选择目录</button>
+                                <button id="reset-plugin-config-dir-btn">恢复默认</button>
+                                <button id="open-plugin-config-dir-btn">打开目录</button>
+                                <button id="save-plugin-config-dir-btn" class="primary">保存目录设置</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="settings-tab" id="python-tab">
@@ -734,16 +747,6 @@
                                     <option value="embedded">内置 Python（默认）</option>
                                     <option value="custom">自定义 Python</option>
                                 </select>
-                            </div>
-                        </div>
-                        <div class="setting-card">
-                            <h3>插件用户配置目录</h3>
-                            <p class="setting-help">插件包内配置只作为首次加载模板。账号、密钥、路径等用户修改统一保存在此目录，分享或升级插件时不会随插件文件泄漏。</p>
-                            <div class="setting-row">
-                                <input type="text" id="plugin-config-dir-input" placeholder="默认位于安装目录下的 plugin-configs" readonly>
-                                <button id="choose-plugin-config-dir-btn">选择目录</button>
-                                <button id="reset-plugin-config-dir-btn">恢复默认</button>
-                                <button id="open-plugin-config-dir-btn">打开目录</button>
                             </div>
                         </div>
                         <div class="setting-card">
@@ -1134,7 +1137,7 @@
             };
             try {
                 state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
-                showNotification('设置已保存', 'Python 环境和插件配置目录会用于之后启动的插件', 'success');
+                showNotification('设置已保存', '常规设置和 Python 环境会用于之后启动的插件', 'success');
                 closeModal(document.getElementById('settings-modal'));
             } catch (error) {
                 showNotification('保存失败', error.message || 'Python 环境验证失败', 'error');
@@ -1354,9 +1357,30 @@
             input.dataset.customPath = '';
             input.value = await ipcRenderer.invoke('plugin-config:get-default-directory').catch(() => '');
         });
+        document.getElementById('save-plugin-config-dir-btn').addEventListener('click', async () => {
+            const input = document.getElementById('plugin-config-dir-input');
+            const button = document.getElementById('save-plugin-config-dir-btn');
+            button.disabled = true;
+            try {
+                const result = await ipcRenderer.invoke(
+                    'plugin-config:save-directory',
+                    input.dataset.customPath || ''
+                );
+                state.settings = { ...state.settings, ...(result.settings || {}) };
+                input.value = result.directory || input.value;
+                input.dataset.customPath = state.settings.customPluginConfigDir || '';
+                showNotification('目录设置已保存', '重新打开应用后仍会使用当前插件用户配置目录', 'success');
+            } catch (error) {
+                showNotification('保存失败', error.message || '无法保存插件配置目录', 'error');
+            } finally {
+                button.disabled = false;
+            }
+        });
         document.getElementById('open-plugin-config-dir-btn').addEventListener('click', async () => {
             try {
-                await ipcRenderer.invoke('plugin-config:open-directory');
+                const selectedDirectory = document.getElementById('plugin-config-dir-input').value.trim();
+                const errorMessage = await ipcRenderer.invoke('plugin-config:open-directory', selectedDirectory);
+                if (errorMessage) throw new Error(errorMessage);
             } catch (error) {
                 showNotification('打开失败', error.message || '无法打开插件配置目录', 'error');
             }
