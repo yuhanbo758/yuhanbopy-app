@@ -2,6 +2,15 @@
 .trae/
 .git_backup_*/
 
+# 仅本地保留的插件项目，不提交到远端
+/app/software/big_qmt_app/
+/app/software/small_qmt_app/
+/app/software/sanrenjz-python-loc_cos_backup/
+
+# 仅服务于本地备份插件的验收工具
+/scripts/prepare_minio_ui_acceptance.py
+/scripts/test_minio_sync.py
+
 # 依赖与运行时
 node_modules/
 python/*

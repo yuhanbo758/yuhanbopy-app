@@ -106,7 +106,12 @@ yuhanbopy-lh/
 
 ### Python 插件
 
+- **本地专用项目**：`app/software/big_qmt_app/`、`app/software/small_qmt_app/` 和 `app/software/sanrenjz-python-loc_cos_backup/` 仅在本地保留，由根目录 `.gitignore` 排除，不得强制加入 Git 或推送到远端；后者的 MinIO 专用验收脚本同样仅在本地保留。
+- **QMT 产品隔离**：大 QMT 与小 QMT 分别维护名称、Logo、入口和文档；大 QMT 内部策略及桥接文件仅归属 `big_qmt_app`，小 QMT 交易脚本归属 `small_qmt_app`。两者 Web 服务默认端口分别为 1689、1688，配置使用各自 `BIG_QMT_*`、`SMALL_QMT_*` 环境变量。
 - **GUI 框架**：使用 tkinter / ttk，无需额外安装
+- **同目录模块导入**：公共 `plugin_bootstrap.py` 在 `runpy.run_path()` 前将入口脚本目录置于 `sys.path` 首位，保持与直接运行脚本一致，避免误加载其他项目的同名模块；插件仍须用 `__file__` 定位资源。
+- **备份插件退出**：关闭窗口须先停止定时调度并隐藏界面，MinIO 在文件分块边界响应取消、配置明确网络超时，退出前通过 finally 释放同步锁；不得强杀线程或按超时抢占远端锁。INFO 写 stdout，警告/错误写 stderr。
+- **MinIO 双向同步**：`sanrenjz-python-loc_cos_backup` 使用内容基线与服务端条件互斥，双方修改须先保留冲突副本，删除通过远端标记传播，覆盖/删除前须保留远端历史版本；测试仅用临时目录和模拟对象存储，禁止真实网络及真实备份数据访问。
 - **路径探测**：使用 `possible_paths` 列表遍历方式适配开发/打包环境
 - **依赖管理**：每个插件可有独立 `requirements.txt`，主进程运行前自动 pip 安装缺失包
 - **依赖复用**：插件需要额外运行环境时，必须先检查主程序当前选中的 Python 是否已能加载所需模块；检查通过就直接复用。只有缺失或不兼容时才安装插件私有依赖，并通过依赖指纹避免重复下载、清理已经移除的旧依赖

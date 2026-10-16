@@ -13,7 +13,41 @@ TEST_ICON = PROJECT_ROOT / "app" / "software" / "terminal" / "logo.ico"
 EXPECTED_APP_ID = "com.sanrenjz.yuhanbopy.plugin.bootstrap.test"
 
 
+def test_local_imports():
+    with tempfile.TemporaryDirectory(prefix="yuhanbopy-import-test-") as temp_dir:
+        root = Path(temp_dir)
+        plugin_dir = root / "plugin"
+        foreign_dir = root / "foreign"
+        plugin_dir.mkdir()
+        foreign_dir.mkdir()
+        (plugin_dir / "utils.py").write_text("SOURCE = 'plugin'\n", encoding="utf-8")
+        (foreign_dir / "utils.py").write_text("SOURCE = 'foreign'\n", encoding="utf-8")
+        probe = plugin_dir / "probe.py"
+        probe.write_text(
+            "import os, sys, utils\n"
+            "assert utils.SOURCE == 'plugin', utils.__file__\n"
+            "assert sys.path[0] == os.path.dirname(os.path.abspath(__file__))\n"
+            "assert sys.argv[1:] == ['plugin-argument']\n"
+            "import plugin_config_runtime\n"
+            "print('local imports passed')\n",
+            encoding="utf-8",
+        )
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join([str(foreign_dir), str(PROJECT_ROOT / "app")])
+        # 从其他工作目录启动，并注入同名外部模块，覆盖本次实际故障。
+        for script in (str(probe), os.path.relpath(probe, foreign_dir)):
+            result = subprocess.run(
+                [sys.executable, str(BOOTSTRAP), "--script", script, "plugin-argument"],
+                cwd=foreign_dir, env=env, capture_output=True, text=True,
+                encoding="utf-8", timeout=30,
+            )
+            assert result.returncode == 0, result.stderr
+            assert "local imports passed" in result.stdout
+    print("plugin local imports test passed")
+
+
 def main():
+    test_local_imports()
     with tempfile.TemporaryDirectory(prefix="yuhanbopy-bootstrap-test-") as temp_dir:
         probe = Path(temp_dir) / "probe.py"
         probe.write_text(

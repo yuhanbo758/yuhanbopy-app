@@ -62,6 +62,9 @@ def main():
     if options.config_dir:
         os.environ["YUHANBOPY_PLUGIN_CONFIG_DIR"] = os.path.abspath(options.config_dir)
     install_tkinter_icon(options.logo, options.icon)
+    # run_path 不会添加脚本目录；优先加载插件同目录模块，保持与直接运行脚本一致。
+    script_dir = os.path.dirname(os.path.abspath(options.script))
+    sys.path.insert(0, script_dir)
     sys.argv = [options.script, *plugin_args]
     runpy.run_path(options.script, run_name="__main__")
 
