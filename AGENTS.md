@@ -99,6 +99,8 @@ yuhanbopy-lh/
 
 ### JavaScript（主进程 / 渲染进程）
 
+- **本地插件导入**：按原文件名/目录名识别同名插件并替换，不生成 `_1` 等副本；先准备新内容再切换，失败恢复旧版本。正在运行的插件须先关闭；集中用户配置保留。此规则与启动时仅补充缺失内置插件的策略独立。
+
 - **IPC 通信**：渲染进程通过 `ipcRenderer.invoke()` 调用主进程，主进程通过 `ipcMain.handle()` 注册处理器
 - **路径适配**：开发/打包双模式适配，统一使用 `app.isPackaged ? process.resourcesPath : __dirname`
 - **临时文件**：统一放 `os.tmpdir()/yuhanbopy-temp/`，进程退出时自动清理

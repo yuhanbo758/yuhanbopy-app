@@ -821,8 +821,6 @@
     <script>
         const { ipcRenderer, shell } = require('electron');
         const remote = require('@electron/remote');
-        const fs = require('fs');
-        const path = require('path');
 
         const state = {
             programs: [],
@@ -1258,7 +1256,7 @@
                 cancelId: 2,
                 title: '选择添加类型',
                 message: '请选择要添加的内容类型',
-                detail: '添加 Python 文件：选择一个或多个 .py 文件\n添加文件夹：选择一个或多个完整文件夹'
+                detail: '添加 Python 文件：选择一个或多个 .py 文件\n添加文件夹：选择一个或多个完整文件夹\n同名文件或文件夹将替换已有插件，请先关闭正在运行的插件。'
             });
 
             if (response === 2) return;
@@ -1270,32 +1268,25 @@
 
             if (result.canceled || !result.filePaths.length) return;
 
-            const softwareDirResult = await ipcRenderer.invoke('open-software-directory');
-            const softwareDir = softwareDirResult.path;
-
-            for (const sourcePath of result.filePaths) {
-                const stats = fs.statSync(sourcePath);
-                if (stats.isDirectory()) {
-                    const targetDir = uniquePath(path.join(softwareDir, path.basename(sourcePath)));
-                    fs.cpSync(sourcePath, targetDir, { recursive: true, force: true });
-                } else if (stats.isFile()) {
-                    const targetPath = uniquePath(path.join(softwareDir, path.basename(sourcePath)));
-                    fs.copyFileSync(sourcePath, targetPath);
+            const imported = [];
+            const failures = [];
+            try {
+                for (const sourcePath of result.filePaths) {
+                    try {
+                        imported.push(await ipcRenderer.invoke('import-local-software', sourcePath));
+                    } catch (error) {
+                        failures.push(`${sourcePath}：${error.message}`);
+                    }
                 }
+            } finally {
+                await loadPrograms();
             }
-
-            await loadPrograms();
-            showNotification('导入完成', '本地插件已复制到应用插件目录', 'success');
-        }
-
-        function uniquePath(targetPath) {
-            if (!fs.existsSync(targetPath)) return targetPath;
-            const parsed = path.parse(targetPath);
-            let counter = 1;
-            while (true) {
-                const candidate = path.join(parsed.dir, `${parsed.name}_${counter}${parsed.ext}`);
-                if (!fs.existsSync(candidate)) return candidate;
-                counter += 1;
+            if (imported.length) {
+                const count = (action) => imported.filter((item) => item.action === action).length;
+                showNotification('导入完成', `新增 ${count('added')} 个，替换 ${count('replaced')} 个，已在插件目录中 ${count('unchanged')} 个`, 'success');
+            }
+            if (failures.length) {
+                await remote.dialog.showMessageBox({ type: 'error', title: '部分插件未导入', message: '以下插件导入失败', detail: failures.join('\n') });
             }
         }
 
