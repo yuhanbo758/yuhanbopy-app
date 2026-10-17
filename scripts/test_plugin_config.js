@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const {
     copyMissingPluginConfigs,
     getPluginConfigRoot,
@@ -73,6 +74,21 @@ try {
     const resetSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     assert.strictEqual(resetSettings.customPluginConfigDir, '');
     assert.strictEqual(reset.directory, defaultRoot, '恢复默认后必须重新使用安装目录旁的 plugin-configs');
+    const repo = path.join(testRoot, 'repo');
+    fs.mkdirSync(repo);
+    execFileSync('git', ['init', repo], { stdio: 'ignore' });
+    for (const root of [path.join(repo, 'plugin-configs'), path.join(repo, 'custom-private')]) {
+        const prepared = preparePluginConfig({ folderPath: pluginDir, configRoot: root });
+        const relative = path.relative(repo, prepared.configPath);
+        execFileSync('git', ['-C', repo, 'check-ignore', relative], { stdio: 'ignore' });
+        assert.strictEqual(execFileSync('git', ['-C', repo, 'ls-files', '--', relative], { encoding: 'utf8' }), '');
+    }
+    const trackedDir = path.join(repo, 'tracked');
+    fs.mkdirSync(trackedDir);
+    fs.writeFileSync(path.join(trackedDir, 'value.txt'), 'fixture');
+    execFileSync('git', ['-C', repo, 'add', 'tracked/value.txt']);
+    assert.throws(() => preparePluginConfig({ folderPath: pluginDir, configRoot: trackedDir }), /Git.*跟踪/);
+    assert.throws(() => getPluginConfigRoot({ customPluginConfigDir: pluginDir }, installDir), /插件程序目录/);
     console.log('plugin_config test passed');
 } finally {
     fs.rmSync(testRoot, { recursive: true, force: true });

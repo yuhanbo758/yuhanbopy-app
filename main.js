@@ -58,6 +58,7 @@ const {
     copyMissingPluginConfigs,
     getPluginConfigRoot,
     preparePluginConfig,
+    protectConfigDirectory,
     savePluginConfigDirectory
 } = require(path.join(embeddedAppPath, 'plugin_config.js'));
 const {
@@ -197,7 +198,7 @@ function getSoftwareDir() {
 }
 
 function getCurrentPluginConfigRoot(settings = loadSettings()) {
-    return ensureDir(getPluginConfigRoot(settings, installedAppPath));
+    return protectConfigDirectory(getPluginConfigRoot(settings, installedAppPath));
 }
 
 function prepareSoftwareStore() {
@@ -912,11 +913,8 @@ async function installDownloadedSoftware(downloadPath) {
 
         const installed = [];
         for (const root of roots) {
-            const folderName = sanitizeFileName(path.basename(root));
-            const targetDir = path.join(softwareDir, folderName);
-            removePath(targetDir);
-            copyDirectoryContents(root, targetDir);
-            installed.push({ name: folderName, path: targetDir });
+            installed.push(importLocalSoftware(root, softwareDir,
+                [...runningProcesses.values()].map((record) => record.scriptPath), getCurrentPluginConfigRoot()));
         }
 
         return installed;
@@ -1399,7 +1397,7 @@ ipcMain.handle('show-log-window', () => {
 
 ipcMain.handle('get-software-list', async () => getSoftwareList());
 ipcMain.handle('import-local-software', (_event, sourcePath) => (
-    importLocalSoftware(sourcePath, getSoftwareDir(), [...runningProcesses.values()].map((record) => record.scriptPath))
+    importLocalSoftware(sourcePath, getSoftwareDir(), [...runningProcesses.values()].map((record) => record.scriptPath), getCurrentPluginConfigRoot())
 ));
 ipcMain.handle('get-software-details', async (_event, folderPath) => getSoftwareDetails(folderPath));
 ipcMain.handle('run-python-script', async (_event, scriptPath, requirementsPath, logoPath, taskbarIconPath, pluginAppId) => (

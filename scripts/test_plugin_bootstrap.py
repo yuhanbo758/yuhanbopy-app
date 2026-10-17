@@ -29,10 +29,18 @@ def test_local_imports():
             "assert sys.path[0] == os.path.dirname(os.path.abspath(__file__))\n"
             "assert sys.argv[1:] == ['plugin-argument']\n"
             "import plugin_config_runtime\n"
+            "assert os.path.basename(os.environ['YUHANBOPY_PLUGIN_CONFIG_DIR']) == 'private'\n"
             "print('local imports passed')\n",
             encoding="utf-8",
         )
         env = dict(os.environ)
+        env.pop('YUHANBOPY_PLUGIN_CONFIG_FILE', None)
+        env.pop('YUHANBOPY_PLUGIN_CONFIG_DIR', None)
+        env['APPDATA'] = str(root / 'appdata')
+        settings = root / 'appdata' / 'yuhanbopy-app' / 'settings.json'
+        settings.parent.mkdir(parents=True)
+        import json
+        settings.write_text(json.dumps({'customPluginConfigDir': str(root / 'private')}), encoding='utf-8')
         env["PYTHONPATH"] = os.pathsep.join([str(foreign_dir), str(PROJECT_ROOT / "app")])
         # 从其他工作目录启动，并注入同名外部模块，覆盖本次实际故障。
         for script in (str(probe), os.path.relpath(probe, foreign_dir)):

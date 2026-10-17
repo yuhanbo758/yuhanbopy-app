@@ -57,7 +57,7 @@ function initializeSoftwareStore({ bundledDir, persistentDir, migrationDirs = []
     };
 }
 
-function importLocalSoftware(sourcePath, softwareDir, runningScriptPaths = []) {
+function importLocalSoftware(sourcePath, softwareDir, runningScriptPaths = [], configRoot = '') {
     const source = fs.realpathSync(sourcePath);
     const store = fs.realpathSync(softwareDir);
     const name = path.basename(path.resolve(sourcePath));
@@ -78,6 +78,9 @@ function importLocalSoftware(sourcePath, softwareDir, runningScriptPaths = []) {
     if (contains(source, target) || contains(target, source)) {
         throw new Error('导入源和目标目录不能互相包含');
     }
+    if (configRoot && (contains(target, path.resolve(configRoot)) || contains(path.resolve(configRoot), target))) {
+        throw new Error('插件目录与用户配置目录不能互相包含，请先迁移用户配置目录');
+    }
     if (runningScriptPaths.some((scriptPath) => contains(target, path.resolve(scriptPath)))) {
         throw new Error(`插件 ${name} 正在运行，请关闭后再替换`);
     }
@@ -89,6 +92,21 @@ function importLocalSoftware(sourcePath, softwareDir, runningScriptPaths = []) {
     try {
         // 完整准备新版本后才切换目录，确保旧文件被移除且复制失败不损坏旧插件。
         fs.cpSync(source, staged, { recursive: stats.isDirectory(), force: false, errorOnExist: true });
+        // 替换程序时保留原默认配置模板；真实用户配置始终在独立目录，不能随程序切换。
+        if (replaced && stats.isDirectory()) {
+            const settingsFile = path.join(target, 'settings.json');
+            const metadata = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf8')) : {};
+            const configName = metadata.config_file || 'config.json';
+            const oldConfig = path.resolve(target, configName);
+            const newConfig = path.resolve(staged, configName);
+            if (oldConfig === target || !contains(target, oldConfig) || !contains(staged, newConfig)) {
+                throw new Error('默认配置文件路径必须位于插件目录内');
+            }
+            if (fs.existsSync(oldConfig)) {
+                fs.mkdirSync(path.dirname(newConfig), { recursive: true });
+                fs.copyFileSync(oldConfig, newConfig);
+            }
+        }
         if (replaced) fs.renameSync(target, backup);
         try {
             fs.renameSync(staged, target);

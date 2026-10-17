@@ -22,6 +22,9 @@ python/python-3.12.8-embed-amd64/
 dist/
 resources/
 plugin-configs/
+# 用户配置目录的自保护 .gitignore 会覆盖自定义目录内的全部用户文件。
+# 插件内只允许公开默认模板；历史私密配置及迁移副本不得进入版本控制。
+**/.legacy-configs/
 locales/
 *.blockmap
 *.exe
