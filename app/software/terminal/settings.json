@@ -1,8 +1,8 @@
 {
   "name": "终端模拟器",
-  "description": "一个简单的终端模拟器，可以执行系统命令。",
+  "description": "支持实时输出、命令停止、目录切换与日志导出的轻量终端。",
   "main_file": "terminal.py",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "余汉波",
   "category": "系统工具",
   "logo": "logo.png",

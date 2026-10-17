@@ -52,7 +52,7 @@ const persistentSoftwarePath = path.join(installedAppPath, 'plugins');
 const pluginLogoCachePath = path.join(app.getPath('userData'), 'plugin-logos');
 const pluginBootstrapPath = path.join(embeddedAppPath, 'plugin_bootstrap.py');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
-const { initializeSoftwareStore } = require(path.join(embeddedAppPath, 'software_store.js'));
+const { initializeSoftwareStore, importLocalSoftware } = require(path.join(embeddedAppPath, 'software_store.js'));
 const { createPluginAppId, ensurePluginLogo } = require(path.join(embeddedAppPath, 'plugin_logo.js'));
 const {
     copyMissingPluginConfigs,
@@ -1398,6 +1398,9 @@ ipcMain.handle('show-log-window', () => {
 });
 
 ipcMain.handle('get-software-list', async () => getSoftwareList());
+ipcMain.handle('import-local-software', (_event, sourcePath) => (
+    importLocalSoftware(sourcePath, getSoftwareDir(), [...runningProcesses.values()].map((record) => record.scriptPath))
+));
 ipcMain.handle('get-software-details', async (_event, folderPath) => getSoftwareDetails(folderPath));
 ipcMain.handle('run-python-script', async (_event, scriptPath, requirementsPath, logoPath, taskbarIconPath, pluginAppId) => (
     runPythonScript(scriptPath, requirementsPath, logoPath, taskbarIconPath, pluginAppId)
