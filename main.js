@@ -1184,7 +1184,8 @@ function getProgramInfo(folderPath) {
                 const config = preparePluginConfig({
                     folderPath,
                     settings,
-                    configRoot: getCurrentPluginConfigRoot()
+                    configRoot: getCurrentPluginConfigRoot(),
+                    initialize: false
                 });
                 return [addProgramVisual({
                     name: settings.name || path.basename(folderPath),

@@ -43,8 +43,7 @@ function getPluginConfigRoot(appSettings = {}, installedAppPath = process.cwd())
 }
 
 function getDefaultConfigPath(folderPath, settings = {}) {
-    const configuredName = String(settings.config_file || '').trim();
-    if (!configuredName) return '';
+    const configuredName = String(settings.config_file || 'config.json').trim();
     const candidate = path.resolve(folderPath, configuredName);
     if (!isInsideFolder(folderPath, candidate) || path.extname(candidate).toLowerCase() !== '.json') {
         throw new Error(`插件默认配置必须是插件目录内的 JSON 文件：${configuredName}`);
@@ -52,13 +51,13 @@ function getDefaultConfigPath(folderPath, settings = {}) {
     return fs.existsSync(candidate) ? candidate : '';
 }
 
-function preparePluginConfig({ folderPath, settings = {}, configRoot }) {
+function preparePluginConfig({ folderPath, settings = {}, configRoot, initialize = true }) {
     const rootPath = protectConfigDirectory(configRoot);
     const pluginId = safePluginId(folderPath);
     const configPath = path.join(rootPath, `${pluginId}.json`);
     const defaultConfigPath = getDefaultConfigPath(folderPath, settings);
 
-    if (!fs.existsSync(configPath)) {
+    if (initialize && !fs.existsSync(configPath)) {
         if (defaultConfigPath) {
             const parsed = JSON.parse(fs.readFileSync(defaultConfigPath, 'utf8'));
             fs.writeFileSync(configPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');

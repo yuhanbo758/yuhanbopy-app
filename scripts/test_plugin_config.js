@@ -19,6 +19,8 @@ try {
 
     const defaultRoot = getPluginConfigRoot({}, installDir);
     assert.strictEqual(defaultRoot, path.join(installDir, 'plugin-configs'));
+    const scanned = preparePluginConfig({ folderPath: pluginDir, settings: {}, configRoot: defaultRoot, initialize: false });
+    assert.strictEqual(fs.existsSync(scanned.configPath), false, '扫描列表不能提前创建空配置遮蔽旧配置');
     const first = preparePluginConfig({
         folderPath: pluginDir,
         settings: { config_file: 'config.json' },

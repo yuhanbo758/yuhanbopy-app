@@ -92,19 +92,47 @@ function importLocalSoftware(sourcePath, softwareDir, runningScriptPaths = [], c
     try {
         // 完整准备新版本后才切换目录，确保旧文件被移除且复制失败不损坏旧插件。
         fs.cpSync(source, staged, { recursive: stats.isDirectory(), force: false, errorOnExist: true });
-        // 替换程序时保留原默认配置模板；真实用户配置始终在独立目录，不能随程序切换。
+        // 更新程序不能改变配置内容；兼容旧插件旁路配置及新版本配置文件改名。
         if (replaced && stats.isDirectory()) {
             const settingsFile = path.join(target, 'settings.json');
             const metadata = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf8')) : {};
-            const configName = metadata.config_file || 'config.json';
-            const oldConfig = path.resolve(target, configName);
-            const newConfig = path.resolve(staged, configName);
-            if (oldConfig === target || !contains(target, oldConfig) || !contains(staged, newConfig)) {
-                throw new Error('默认配置文件路径必须位于插件目录内');
+            if (configRoot) {
+                // 迁移只针对尚不存在的用户文件，且必须取自旧插件，不能使用新包的空模板。
+                const { preparePluginConfig } = require('./plugin_config');
+                preparePluginConfig({ folderPath: target, settings: metadata, configRoot });
             }
-            if (fs.existsSync(oldConfig)) {
-                fs.mkdirSync(path.dirname(newConfig), { recursive: true });
-                fs.copyFileSync(oldConfig, newConfig);
+            const incomingSettingsFile = path.join(staged, 'settings.json');
+            const incomingMetadata = fs.existsSync(incomingSettingsFile) ? JSON.parse(fs.readFileSync(incomingSettingsFile, 'utf8')) : {};
+            const oldName = metadata.config_file || 'config.json';
+            const nextName = incomingMetadata.config_file || 'config.json';
+            const preserve = (fromName, toName) => {
+                const oldConfig = path.resolve(target, fromName);
+                const newConfig = path.resolve(staged, toName);
+                if (oldConfig === target || newConfig === staged || !contains(target, oldConfig) || !contains(staged, newConfig)) {
+                    throw new Error('配置文件路径必须位于插件目录内');
+                }
+                if (fs.existsSync(oldConfig)) {
+                    fs.mkdirSync(path.dirname(newConfig), { recursive: true });
+                    fs.copyFileSync(oldConfig, newConfig);
+                }
+            };
+            preserve('config.json', 'config.json');
+            // 旧插件可能未声明 config_file，仍使用 sync_config.json 等文件；替换不得丢弃。
+            const preserveLegacyConfigs = (directory, relative = '') => {
+                for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                    const name = path.join(relative, entry.name);
+                    if (entry.isDirectory() && !entry.name.startsWith('.') && !['node_modules', '__pycache__'].includes(entry.name)) {
+                        preserveLegacyConfigs(path.join(directory, entry.name), name);
+                    } else if (entry.isFile() && /(?:^|[_.-])config(?:[_.-]|$)/i.test(entry.name) && /\.json$/i.test(entry.name)) {
+                        preserve(name, name);
+                    }
+                }
+            };
+            preserveLegacyConfigs(target);
+            preserve(oldName, oldName);
+            if (nextName !== oldName) {
+                // 新入口可能使用新路径；沿用原始内容，不能让包内空模板遮蔽旧配置。
+                preserve(oldName, nextName);
             }
         }
         if (replaced) fs.renameSync(target, backup);
