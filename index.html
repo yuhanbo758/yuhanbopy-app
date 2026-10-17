@@ -297,6 +297,12 @@
 
         .settings-tab { display: none; }
         .settings-tab.active { display: block; }
+        .plugin-management-table { width: 100%; border-collapse: collapse; }
+        .plugin-management-table th, .plugin-management-table td { padding: 12px 8px; border-bottom: 1px solid var(--line); text-align: center; }
+        .plugin-management-table th:first-child, .plugin-management-table td:first-child { text-align: left; }
+        .plugin-management-table th { font-size: 13px; white-space: nowrap; }
+        .plugin-management-table input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--brand); }
+        .plugin-management-path { margin-top: 5px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
         .section-title {
             margin: 0 0 8px;
@@ -701,6 +707,7 @@
                 <div class="settings-sidebar">
                     <button class="active" data-tab="general-tab">常规设置</button>
                     <button data-tab="python-tab">Python 环境</button>
+                    <button data-tab="plugins-tab">插件程序管理</button>
                     <button data-tab="update-tab">更新设置</button>
                 </div>
                 <div class="settings-main">
@@ -757,6 +764,18 @@
                                 <button id="choose-python-btn">选择 Python</button>
                             </div>
                             <div class="python-status" id="python-status">正在读取 Python 环境...</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-tab" id="plugins-tab">
+                        <h2 class="section-title">插件程序管理</h2>
+                        <p class="section-desc">选择随主程序启动的插件，以及在主界面显示的插件。新插件默认显示，不自动启动。</p>
+                        <div class="setting-card">
+                            <p class="setting-help">“随主程序启动”从下次启动主程序生效。隐藏不影响自动启动，也不删除插件；可随时在此重新显示。修改后请点击下方“保存设置”。</p>
+                            <table class="plugin-management-table">
+                                <thead><tr><th scope="col">插件程序</th><th scope="col">随主程序启动</th><th scope="col">在主界面显示</th></tr></thead>
+                                <tbody id="plugin-management-list"></tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -824,6 +843,8 @@
 
         const state = {
             programs: [],
+            managementPrograms: [],
+            pluginDraft: {},
             filteredPrograms: [],
             settings: {
                 autoStart: false,
@@ -1090,6 +1111,9 @@
 
         async function loadSettings() {
             state.settings = await ipcRenderer.invoke('get-settings');
+            state.pluginDraft = JSON.parse(JSON.stringify(state.settings.pluginPreferences || {}));
+            state.managementPrograms = await ipcRenderer.invoke('get-plugin-management-list');
+            renderPluginManagement();
             document.getElementById('auto-start-checkbox').checked = Boolean(state.settings.autoStart);
             document.getElementById('auto-check-updates-checkbox').checked = state.settings.autoCheckUpdates !== false;
             document.getElementById('python-mode-select').value = state.settings.pythonMode === 'custom' ? 'custom' : 'embedded';
@@ -1105,6 +1129,29 @@
             renderPythonStatus(pythonStatus);
             const softwareDir = await ipcRenderer.invoke('get-software-directory').catch(() => '');
             document.getElementById('software-dir-input').value = softwareDir;
+        }
+
+        function renderPluginManagement() {
+            const list = document.getElementById('plugin-management-list');
+            list.innerHTML = '';
+            if (!state.managementPrograms.length) {
+                list.innerHTML = '<tr><td colspan="3">暂无已安装插件，请先通过本地文件或程序小店添加。</td></tr>';
+                return;
+            }
+            for (const program of state.managementPrograms) {
+                const preference = state.pluginDraft[program.id] || {};
+                const row = document.createElement('tr');
+                row.innerHTML = `<td><strong>${escapeHtml(program.name)}</strong><div class="plugin-management-path">${escapeHtml(program.id)}</div></td>
+                    <td><input type="checkbox" data-option="autoStart" aria-label="${escapeHtml(program.name)} 随主程序启动" ${preference.autoStart === true ? 'checked' : ''}></td>
+                    <td><input type="checkbox" data-option="visible" aria-label="${escapeHtml(program.name)} 在主界面显示" ${preference.hidden !== true ? 'checked' : ''}></td>`;
+                row.querySelectorAll('input').forEach((input) => input.addEventListener('change', () => {
+                    const next = { autoStart: preference.autoStart === true, hidden: preference.hidden === true, ...state.pluginDraft[program.id] };
+                    if (input.dataset.option === 'visible') next.hidden = !input.checked;
+                    else next.autoStart = input.checked;
+                    state.pluginDraft[program.id] = next;
+                }));
+                list.appendChild(row);
+            }
         }
 
         function updatePythonControls() {
@@ -1131,11 +1178,13 @@
                 autoCheckUpdates: document.getElementById('auto-check-updates-checkbox').checked,
                 pythonMode: document.getElementById('python-mode-select').value,
                 customPythonPath: document.getElementById('custom-python-path-input').value.trim(),
-                customPluginConfigDir: document.getElementById('plugin-config-dir-input').dataset.customPath || ''
+                customPluginConfigDir: document.getElementById('plugin-config-dir-input').dataset.customPath || '',
+                pluginPreferences: state.pluginDraft
             };
             try {
                 state.settings = await ipcRenderer.invoke('save-settings', nextSettings);
-                showNotification('设置已保存', '常规设置和 Python 环境会用于之后启动的插件', 'success');
+                await loadPrograms();
+                showNotification('设置已保存', '插件显示设置已应用，自动启动设置将在下次启动主程序时生效', 'success');
                 closeModal(document.getElementById('settings-modal'));
             } catch (error) {
                 showNotification('保存失败', error.message || 'Python 环境验证失败', 'error');
@@ -1468,6 +1517,9 @@
             }
         });
         ipcRenderer.on('plugins:changed', () => loadPrograms());
+        ipcRenderer.on('plugin-startup-error', (_event, payload) => {
+            showNotification('插件自动启动失败', `${payload.name}：${payload.message}`, 'error');
+        });
         ipcRenderer.on('open-settings', async () => {
             await loadSettings();
             openModal('settings-modal');

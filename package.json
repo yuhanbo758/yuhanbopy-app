@@ -13,6 +13,7 @@
     "release-linux": "npm run prepare-icons && electron-builder --linux --x64 --publish never",
     "bump-version": "node scripts/bump_version.js",
     "test-software-store": "node scripts/test_software_store.js",
+    "test-plugin-management": "node scripts/test_plugin_management.js",
     "test-python-runtime": "node scripts/test_python_runtime.js",
     "generate-plugin-logos": "node scripts/generate_plugin_logos.js",
     "test-plugin-logo": "node scripts/test_plugin_logo.js",

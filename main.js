@@ -53,6 +53,7 @@ const pluginLogoCachePath = path.join(app.getPath('userData'), 'plugin-logos');
 const pluginBootstrapPath = path.join(embeddedAppPath, 'plugin_bootstrap.py');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 const { initializeSoftwareStore, importLocalSoftware } = require(path.join(embeddedAppPath, 'software_store.js'));
+const { normalizePluginPreferences, applyPluginPreferences, startConfiguredPlugins } = require(path.join(embeddedAppPath, 'plugin_management.js'));
 const { createPluginAppId, ensurePluginLogo } = require(path.join(embeddedAppPath, 'plugin_logo.js'));
 const {
     copyMissingPluginConfigs,
@@ -83,7 +84,8 @@ const defaultSettings = {
     autoCheckUpdates: true,
     pythonMode: 'embedded',
     customPythonPath: '',
-    customPluginConfigDir: ''
+    customPluginConfigDir: '',
+    pluginPreferences: {}
 };
 
 let mainWindow = null;
@@ -416,6 +418,7 @@ async function saveSettings(settings) {
     const previousSettings = loadSettings();
     const previousConfigRoot = getPluginConfigRoot(previousSettings, installedAppPath);
     const nextSettings = { ...previousSettings, ...settings };
+    nextSettings.pluginPreferences = normalizePluginPreferences(nextSettings.pluginPreferences);
     nextSettings.pythonMode = nextSettings.pythonMode === 'custom' ? 'custom' : 'embedded';
     nextSettings.customPythonPath = String(nextSettings.customPythonPath || '').trim();
     nextSettings.customPluginConfigDir = String(nextSettings.customPluginConfigDir || '').trim();
@@ -1226,7 +1229,7 @@ function getProgramInfo(folderPath) {
         });
 }
 
-async function getSoftwareList() {
+async function getSoftwareList({ includeHidden = false } = {}) {
     const softwareDir = getSoftwareDir();
     const items = fs.readdirSync(softwareDir, { withFileTypes: true });
     let programs = [];
@@ -1256,7 +1259,9 @@ async function getSoftwareList() {
         }
     }
 
-    return programs.sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+    const managed = applyPluginPreferences(programs, softwareDir, loadSettings().pluginPreferences);
+    return managed.filter((program) => includeHidden || !program.hidden)
+        .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }
 
 async function getSoftwareDetails(folderPath) {
@@ -1303,7 +1308,7 @@ function getPythonLauncher(runtime) {
     return fs.existsSync(pythonwPath) ? pythonwPath : runtime.executable;
 }
 
-async function runPythonScript(scriptPath, requirementsPath, logoPath = '', taskbarIconPath = '', pluginAppId = '') {
+async function runPythonScript(scriptPath, requirementsPath, logoPath = '', taskbarIconPath = '', pluginAppId = '', { waitForExit = true } = {}) {
     if (!logWindow || logWindow.isDestroyed()) {
         createLogWindow();
     }
@@ -1313,6 +1318,7 @@ async function runPythonScript(scriptPath, requirementsPath, logoPath = '', task
     if (requirementsPath) {
         await installRequirements(requirementsPath, runtime);
     }
+    if (isQuitting) throw new Error('主程序正在退出，已取消插件启动');
 
     const isEncrypted = scriptPath.endsWith('.enc');
     let finalScriptPath = scriptPath;
@@ -1360,6 +1366,9 @@ async function runPythonScript(scriptPath, requirementsPath, logoPath = '', task
             finalScriptPath,
             tempFilePath
         });
+        childProcess.once('spawn', () => {
+            if (!waitForExit) resolve({ success: true, pid: childProcess.pid });
+        });
 
         childProcess.stdout.on('data', (data) => {
             if (logWindow && !logWindow.isDestroyed()) {
@@ -1380,6 +1389,7 @@ async function runPythonScript(scriptPath, requirementsPath, logoPath = '', task
                 resolve({ success: true });
                 return;
             }
+            if (!waitForExit) console.error(`自动启动的插件退出异常：${scriptPath}，退出码 ${code}`);
             reject(new Error(`Python script exited with code ${code}`));
         });
 
@@ -1397,6 +1407,7 @@ ipcMain.handle('show-log-window', () => {
 });
 
 ipcMain.handle('get-software-list', async () => getSoftwareList());
+ipcMain.handle('get-plugin-management-list', async () => getSoftwareList({ includeHidden: true }));
 ipcMain.handle('import-local-software', (_event, sourcePath) => (
     importLocalSoftware(sourcePath, getSoftwareDir(), [...runningProcesses.values()].map((record) => record.scriptPath), getCurrentPluginConfigRoot())
 ));
@@ -1554,6 +1565,18 @@ app.whenReady().then(async () => {
 
         const settings = loadSettings();
         app.setLoginItemSettings({ openAtLogin: Boolean(settings.autoStart), path: process.execPath });
+        // 每次主程序启动只执行一次；列表刷新、保存设置和重新打开窗口均不触发。
+        getSoftwareList({ includeHidden: true }).then((programs) => startConfiguredPlugins(programs,
+            (program) => runPythonScript(program.path, program.requirementsPath, program.logoPath,
+                program.taskbarIconPath, program.pluginAppId, { waitForExit: false }), {
+                shouldStop: () => isQuitting,
+                onError: (program, error) => {
+                    console.error(`插件自动启动失败：${program.name}`, error);
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('plugin-startup-error', { name: program.name, message: error.message });
+                    }
+                }
+            })).catch((error) => console.error('读取插件启动设置失败:', error));
         if (settings.autoCheckUpdates && canCheckForUpdates()) {
             setTimeout(() => {
                 checkForAppUpdates().catch(() => {});
