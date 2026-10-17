@@ -1,8 +1,8 @@
 {
-  "fingerprint": "590368b07c6755c37ab833b71638805a867cf95124f98ee75faada18406ffab4",
+  "fingerprint": "a55268da07678365bbdd664b24a051397bddbb49277306b11758541e244d9ab1",
   "semanticType": "terminal",
   "generatorVersion": 3,
-  "logoSha256": "8e1db44459d3cbf03a0c9e6cf0d2069a6b54e4a912b30a738b040c1c482a6ab9",
-  "taskbarIconSha256": "61eacaefb93d6875d400772fe63916901b4e24842996738d0e608be83ffa9f09",
-  "generatedAt": "2026-10-16T11:10:14.517Z"
+  "logoSha256": "d879c30b97f64e901a0f516a08081778745a1a2a317882734e456c5a76eae073",
+  "taskbarIconSha256": "ed0b5097f538796cff34becad90666b62d48e508bb110e458e92359a7c0371f2",
+  "generatedAt": "2026-10-17T15:20:01.208Z"
 }
