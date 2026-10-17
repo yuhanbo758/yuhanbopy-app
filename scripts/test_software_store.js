@@ -60,12 +60,16 @@ try {
     const userConfig = path.join(testRoot, 'plugin-configs', 'same-plugin.json');
     fs.mkdirSync(path.dirname(userConfig));
     fs.writeFileSync(userConfig, '{"user":"preserved"}', 'utf8');
-    assert.strictEqual(importLocalSoftware(sourceDir, persistentDir).action, 'replaced');
+    fs.writeFileSync(path.join(persistentDir, 'same-plugin', 'config.json'), '{"default":"old"}', 'utf8');
+    fs.writeFileSync(path.join(sourceDir, 'config.json'), '{"default":"new"}', 'utf8');
+    assert.strictEqual(importLocalSoftware(sourceDir, persistentDir, [], path.dirname(userConfig)).action, 'replaced');
     const targetDir = path.join(persistentDir, 'same-plugin');
     assert.strictEqual(fs.readFileSync(path.join(targetDir, 'value.txt'), 'utf8'), 'import-v2');
     assert.strictEqual(fs.existsSync(path.join(targetDir, 'obsolete.py')), false, '替换须清除旧版遗留文件');
     assert.strictEqual(fs.existsSync(path.join(persistentDir, 'same-plugin_1')), false, '不得生成副本目录');
     assert.strictEqual(fs.readFileSync(userConfig, 'utf8'), '{"user":"preserved"}');
+    assert.strictEqual(fs.readFileSync(path.join(targetDir, 'config.json'), 'utf8'), '{"default":"old"}', '替换程序不得覆盖原配置模板');
+    assert.throws(() => importLocalSoftware(sourceDir, persistentDir, [], path.join(targetDir, 'private')), /用户配置目录/);
     assert.strictEqual(importLocalSoftware(targetDir, persistentDir).action, 'unchanged');
     assert.throws(() => importLocalSoftware(sourceDir, persistentDir, [path.join(targetDir, 'main.py')]), /正在运行/);
     assert.throws(() => importLocalSoftware(persistentDir, persistentDir), /互相包含/);

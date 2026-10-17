@@ -1,5 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
+
+function protectConfigDirectory(directory) {
+    const root = ensureDir(path.resolve(directory));
+    const tracked = spawnSync('git', ['-C', root, 'ls-files', '--', '.'], { encoding: 'utf8', windowsHide: true });
+    if (tracked.status === 0 && tracked.stdout.trim()) {
+        throw new Error('插件用户配置目录包含已被 Git 跟踪的文件，请选择独立的私密目录');
+    }
+    const ignorePath = path.join(root, '.gitignore');
+    const previous = fs.existsSync(ignorePath) ? fs.readFileSync(ignorePath, 'utf8') : '';
+    if (!previous.trimEnd().endsWith('# Private plugin configuration\n*')) {
+        fs.appendFileSync(ignorePath, `${previous && !previous.endsWith('\n') ? '\n' : ''}# Private plugin configuration\n*\n`, 'utf8');
+    }
+    return root;
+}
 
 function ensureDir(targetPath) {
     fs.mkdirSync(targetPath, { recursive: true });
@@ -18,7 +33,13 @@ function isInsideFolder(folderPath, candidatePath) {
 
 function getPluginConfigRoot(appSettings = {}, installedAppPath = process.cwd()) {
     const customPath = String(appSettings.customPluginConfigDir || '').trim();
-    return path.resolve(customPath || path.join(installedAppPath, 'plugin-configs'));
+    const root = path.resolve(customPath || path.join(installedAppPath, 'plugin-configs'));
+    for (const plugins of [path.join(installedAppPath, 'app', 'software'), path.join(installedAppPath, 'plugins')]) {
+        if (root === plugins || isInsideFolder(plugins, root)) {
+            throw new Error('插件用户配置目录不能放在插件程序目录中');
+        }
+    }
+    return root;
 }
 
 function getDefaultConfigPath(folderPath, settings = {}) {
@@ -32,7 +53,7 @@ function getDefaultConfigPath(folderPath, settings = {}) {
 }
 
 function preparePluginConfig({ folderPath, settings = {}, configRoot }) {
-    const rootPath = ensureDir(path.resolve(configRoot));
+    const rootPath = protectConfigDirectory(configRoot);
     const pluginId = safePluginId(folderPath);
     const configPath = path.join(rootPath, `${pluginId}.json`);
     const defaultConfigPath = getDefaultConfigPath(folderPath, settings);
@@ -51,7 +72,7 @@ function preparePluginConfig({ folderPath, settings = {}, configRoot }) {
 
 function copyMissingPluginConfigs(sourceRoot, targetRoot) {
     const sourcePath = path.resolve(sourceRoot);
-    const targetPath = ensureDir(path.resolve(targetRoot));
+    const targetPath = protectConfigDirectory(targetRoot);
     if (sourcePath === targetPath || !fs.existsSync(sourcePath)) return [];
 
     const copied = [];
@@ -80,6 +101,7 @@ function savePluginConfigDirectory({ settingsPath, appSettings = {}, installedAp
 }
 
 module.exports = {
+    protectConfigDirectory,
     copyMissingPluginConfigs,
     getPluginConfigRoot,
     preparePluginConfig,
