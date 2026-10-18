@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -10,8 +11,57 @@ function createEmbeddedRuntime(paths) {
         libPath: paths.libPath,
         sitePackagesPath: paths.sitePackagesPath,
         dllsPath: paths.dllsPath,
-        tclPath: paths.tclPath
+        tclPath: paths.tclPath,
+        tclLibraryPath: paths.tclLibraryPath || '',
+        tkLibraryPath: paths.tkLibraryPath || '',
+        platform: paths.platform || process.platform,
+        requiredPaths: paths.requiredPaths || []
     };
+}
+
+function firstDirectory(candidates) {
+    return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || '';
+}
+
+function createBundledRuntime(appRoot, { platform = process.platform, arch = process.arch } = {}) {
+    if (arch !== 'x64') {
+        throw new Error(`当前安装包不支持 ${platform}/${arch} Python 运行时`);
+    }
+
+    if (platform === 'win32') {
+        const rootPath = path.join(appRoot, 'python', 'python-3.12.8-embed-amd64');
+        const libPath = path.join(rootPath, 'Lib');
+        const scriptsPath = path.join(rootPath, 'Scripts');
+        const dllsPath = path.join(rootPath, 'DLLs');
+        const tclPath = path.join(rootPath, 'tcl');
+        return createEmbeddedRuntime({
+            executable: path.join(rootPath, 'python.exe'), rootPath, scriptsPath, libPath,
+            sitePackagesPath: path.join(libPath, 'site-packages'), dllsPath, tclPath,
+            tclLibraryPath: path.join(tclPath, 'tcl8.6'), tkLibraryPath: path.join(tclPath, 'tk8.6'),
+            platform, requiredPaths: [libPath, scriptsPath, dllsPath]
+        });
+    }
+
+    const platformName = platform === 'darwin' ? 'macos' : platform;
+    if (!['macos', 'linux'].includes(platformName)) {
+        throw new Error(`当前安装包不支持 ${platform}/${arch} Python 运行时`);
+    }
+    const rootPath = path.join(appRoot, 'python', `python-3.12.8-${platformName}-x64`);
+    const scriptsPath = path.join(rootPath, 'bin');
+    const libPath = path.join(rootPath, 'lib', 'python3.12');
+    return createEmbeddedRuntime({
+        executable: path.join(scriptsPath, 'python3'), rootPath, scriptsPath, libPath,
+        sitePackagesPath: path.join(libPath, 'site-packages'), dllsPath: '', tclPath: '', platform,
+        tclLibraryPath: firstDirectory([
+            path.join(rootPath, 'lib', 'tcl8.6'),
+            path.join(rootPath, 'share', 'tcltk', 'tcl8.6')
+        ]),
+        tkLibraryPath: firstDirectory([
+            path.join(rootPath, 'lib', 'tk8.6'),
+            path.join(rootPath, 'share', 'tcltk', 'tk8.6')
+        ]),
+        requiredPaths: [libPath, scriptsPath]
+    });
 }
 
 function createCustomRuntime(executable, info = {}) {
@@ -37,8 +87,10 @@ function createPythonProcessEnv(runtime, { baseEnv = process.env, appPath = '', 
             .filter(Boolean)
             .join(pathDelimiter);
         env.PYTHONHOME = runtime.rootPath;
-        env.TCL_LIBRARY = path.join(runtime.tclPath, 'tcl8.6');
-        env.TK_LIBRARY = path.join(runtime.tclPath, 'tk8.6');
+        delete env.TCL_LIBRARY;
+        delete env.TK_LIBRARY;
+        if (runtime.tclLibraryPath) env.TCL_LIBRARY = runtime.tclLibraryPath;
+        if (runtime.tkLibraryPath) env.TK_LIBRARY = runtime.tkLibraryPath;
         return env;
     }
 
@@ -117,6 +169,7 @@ function inspectPythonRuntime(runtime, { env, timeoutMs = 10000 } = {}) {
 }
 
 module.exports = {
+    createBundledRuntime,
     createCustomRuntime,
     createEmbeddedRuntime,
     createPythonProcessEnv,

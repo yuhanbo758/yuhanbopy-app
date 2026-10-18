@@ -35,13 +35,6 @@ const SETTINGS_FILE = 'settings.json';
 
 const appRoot = app.isPackaged ? process.resourcesPath : __dirname;
 const buildRoot = path.join(appRoot, 'build');
-const pythonRootPath = path.join(appRoot, 'python', 'python-3.12.8-embed-amd64');
-const pythonPath = path.join(pythonRootPath, 'python.exe');
-const pythonScriptsPath = path.join(pythonRootPath, 'Scripts');
-const pythonLibPath = path.join(pythonRootPath, 'Lib');
-const pythonSitePackagesPath = path.join(pythonLibPath, 'site-packages');
-const pythonTclPath = path.join(pythonRootPath, 'tcl');
-const pythonDLLsPath = path.join(pythonRootPath, 'DLLs');
 const embeddedAppPath = path.join(appRoot, 'app');
 const settingsPath = path.join(app.getPath('userData'), SETTINGS_FILE);
 const bundledSoftwarePath = path.join(embeddedAppPath, 'software');
@@ -64,21 +57,13 @@ const {
     savePluginConfigDirectory
 } = require(path.join(embeddedAppPath, 'plugin_config.js'));
 const {
+    createBundledRuntime,
     createCustomRuntime,
-    createEmbeddedRuntime,
     createPythonProcessEnv,
     inspectPythonRuntime
 } = require(path.join(embeddedAppPath, 'python_runtime.js'));
 
-const embeddedPythonRuntime = createEmbeddedRuntime({
-    executable: pythonPath,
-    rootPath: pythonRootPath,
-    scriptsPath: pythonScriptsPath,
-    libPath: pythonLibPath,
-    sitePackagesPath: pythonSitePackagesPath,
-    dllsPath: pythonDLLsPath,
-    tclPath: pythonTclPath
-});
+const embeddedPythonRuntime = createBundledRuntime(appRoot);
 
 const defaultSettings = {
     autoStart: false,
@@ -371,7 +356,7 @@ async function validatePythonRuntime(runtime) {
     }
 
     if (runtime.mode === 'embedded') {
-        const criticalPaths = [runtime.libPath, runtime.scriptsPath, runtime.dllsPath];
+        const criticalPaths = runtime.requiredPaths || [runtime.libPath, runtime.scriptsPath, runtime.dllsPath].filter(Boolean);
         for (const criticalPath of criticalPaths) {
             ensurePathExists(criticalPath);
         }
@@ -1448,13 +1433,16 @@ ipcMain.handle('plugin-config:open-directory', (_event, requestedDirectory) => {
 });
 ipcMain.handle('python:get-status', () => getPythonStatus());
 ipcMain.handle('python:choose', async () => {
-    const result = await dialog.showOpenDialog(mainWindow || undefined, {
-        title: '选择 Python 解释器',
-        properties: ['openFile'],
-        filters: [
+    const pythonFilters = process.platform === 'win32'
+        ? [
             { name: 'Python 解释器', extensions: ['exe'] },
             { name: '所有文件', extensions: ['*'] }
         ]
+        : [{ name: '所有文件', extensions: ['*'] }];
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+        title: '选择 Python 解释器',
+        properties: ['openFile'],
+        filters: pythonFilters
     });
     if (result.canceled || result.filePaths.length === 0) {
         return { canceled: true };
