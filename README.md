@@ -33,8 +33,8 @@
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | Electron | ^25.9.8 | 桌面应用框架 |
-| electron-builder | 23.6.0 | Windows 打包（NSIS + Portable） |
-| Python | 3.12.8（嵌入式） | 运行 Python 插件 |
+| electron-builder | 23.6.0 | Windows/macOS/Linux x64 打包 |
+| Python | 3.12.8（随平台打包） | 运行 Python 插件 |
 | electron-updater | ^6.8.3 | 应用自动更新（双源：对象存储 + GitHub） |
 | xtquant (迅投QMT) | — | 量化交易数据接口 |
 | Node.js crypto | 内置 | AES-256-CBC 加密/解密 |
@@ -46,8 +46,8 @@
 
 ## 📋 系统要求
 
-- **操作系统：** Windows x64（仅支持 64 位 Windows）
-- **依赖：** 无需额外安装 Python，运行时已内嵌；也可在设置中选择已有的 Python 3 环境
+- **操作系统：** Windows、macOS 或 Linux x64；依赖 QMT、xtquant 等 Windows 能力的插件仍仅支持 Windows
+- **依赖：** 无需额外安装 Python，安装包包含对应平台运行时；也可在设置中选择已有的 Python 3 环境
 
 ---
 
@@ -107,7 +107,9 @@ yuhanbopy-lh/
 │       └── terminal/         # 终端模拟器
 │
 └── python/
-    └── python-3.12.8-embed-amd64/  # 内嵌 Python 运行时
+    ├── python-3.12.8-embed-amd64/  # Windows Python 运行时
+    ├── python-3.12.8-macos-x64/     # macOS CI 构建时生成
+    └── python-3.12.8-linux-x64/     # Linux CI 构建时生成
 ```
 
 ---

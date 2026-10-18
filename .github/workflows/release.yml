@@ -97,7 +97,8 @@ jobs:
 
   build-macos:
     needs: prepare-release
-    runs-on: macos-latest
+    # 当前仅发布 x64 资产，固定 Intel runner，避免 macos-latest 切换到 arm64 后运行时架构不匹配。
+    runs-on: macos-15-intel
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -113,6 +114,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare portable Python runtime
+        shell: bash
+        run: bash scripts/prepare_portable_python.sh macos
 
       - name: Build macOS release
         run: npm run release-mac
@@ -143,6 +148,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare portable Python runtime
+        shell: bash
+        run: bash scripts/prepare_portable_python.sh linux
 
       - name: Build Linux release
         run: npm run release-linux
