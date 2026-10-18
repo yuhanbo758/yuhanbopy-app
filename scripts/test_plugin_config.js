@@ -21,6 +21,7 @@ try {
     assert.strictEqual(defaultRoot, path.join(installDir, 'plugin-configs'));
     const scanned = preparePluginConfig({ folderPath: pluginDir, settings: {}, configRoot: defaultRoot, initialize: false });
     assert.strictEqual(fs.existsSync(scanned.configPath), false, '扫描列表不能提前创建空配置遮蔽旧配置');
+    assert.strictEqual(fs.existsSync(defaultRoot), false, '仅查询配置路径不能创建目录或执行目录保护');
     const first = preparePluginConfig({
         folderPath: pluginDir,
         settings: { config_file: 'config.json' },
