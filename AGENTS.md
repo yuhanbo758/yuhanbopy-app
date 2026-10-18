@@ -19,7 +19,7 @@
 
 | 类别 | 技术/工具 | 版本 | 说明 |
 |------|----------|------|------|
-| 桌面框架 | Electron | ^25.9.8 | 跨平台桌面应用壳，仅构建 Windows x64 |
+| 桌面框架 | Electron | ^25.9.8 | 跨平台桌面应用壳，构建 Windows/Linux x64 与 macOS x64/arm64 |
 | 构建工具 | electron-builder | 23.6.0 | 打包 Windows NSIS/Portable、macOS DMG/ZIP、Linux AppImage |
 | 前端 | 原生 HTML/CSS/JS | — | 无 UI 框架，Vanilla JS + Electron IPC |
 | UI 图标 | Font Awesome | 5.15.4 (CDN) | 按钮图标 |
@@ -32,7 +32,7 @@
 | Python GUI | tkinter / ttk | 标准库 | 各内置工具的图形界面 |
 | 加密 | Node.js crypto | 内置 | AES-256-CBC 加密/解密 `.enc` 文件 |
 | 量化交易库 | xtquant (迅投QMT) | — | 股票量化数据接口，内置于 Python 环境 |
-| 目标平台 | Windows/macOS/Linux x64 | — | 三个平台均随包提供对应 Python 3.12.8；QMT/xtquant 等 Windows 生态插件仍仅支持 Windows |
+| 目标平台 | Windows/Linux x64、macOS x64/arm64 | — | 三个平台均随包提供同架构 Python 3.12.8；QMT/xtquant 等 Windows 生态插件仍仅支持 Windows |
 
 ---
 
@@ -111,7 +111,8 @@ yuhanbopy-lh/
 
 - **IPC 通信**：渲染进程通过 `ipcRenderer.invoke()` 调用主进程，主进程通过 `ipcMain.handle()` 注册处理器
 - **路径适配**：开发/打包双模式适配，统一使用 `app.isPackaged ? process.resourcesPath : __dirname`
-- **跨平台 Python 运行时**：主进程统一通过 `createBundledRuntime()` 选择平台运行时，禁止硬编码 `python.exe`。Windows、macOS、Linux x64 分别使用 `python-3.12.8-embed-amd64`、`python-3.12.8-macos-x64`、`python-3.12.8-linux-x64`；CI 构建前只保留当前平台目录。
+- **跨平台 Python 运行时**：主进程统一通过 `createBundledRuntime()` 按 `process.platform` 与 `process.arch` 选择运行时，禁止硬编码 `python.exe`。Windows x64 使用 `python-3.12.8-embed-amd64`，macOS 使用 `python-3.12.8-macos-x64` 或 `python-3.12.8-macos-arm64`，Linux x64 使用 `python-3.12.8-linux-x64`；CI 构建前只保留当前平台和架构目录。
+- **macOS 双架构发布**：x64 与 arm64 必须分别在 Intel、Apple Silicon GitHub runner 上原生构建，两个任务分别上传资产；发布阶段生成同时包含两种 ZIP 的单一 `latest-mac.yml`，不得让两份同名更新元数据互相覆盖。
 - **临时文件**：统一放 `os.tmpdir()/yuhanbopy-temp/`，进程退出时自动清理
 - **字符编码**：Windows GBK 输出需用 `iconv-lite` 转换为 UTF-8
 
@@ -159,12 +160,13 @@ npm run build-win
 # CI 使用的三平台发布构建
 npm run release-win
 npm run release-mac
+npm run release-mac-arm64
 npm run release-linux
 ```
 
 **打包说明：**
 - `asar: false`，资源明文存放（方便插件热更新）
-- `python/` 打包到 `resources/python/`（排除 .pyc, \_\_pycache\_\_, test/）；GitHub Actions 在构建前准备与目标平台一致的 Python 3.12.8 x64 运行时，Windows 使用官方嵌入版，macOS/Linux 使用固定版本及 SHA-256 的可移植发行包
+- `python/` 打包到 `resources/python/`（排除 .pyc, \_\_pycache\_\_, test/）；GitHub Actions 在构建前准备与目标平台和架构一致的 Python 3.12.8 运行时，Windows 使用官方嵌入版，macOS/Linux 使用固定版本及 SHA-256 的可移植发行包
 - `app/` 打包到 `resources/app/`（排除 .map, \_\_pycache\_\_, node_modules, .git, *.log）
 - 输出：`dist/` 目录，Release 资产命名统一为 `yuhanbopy-app-<version>-<platform>-<arch>`，不发布 `builder-debug.yml` 等调试资产
 - 自动版本递增：每次非 bot push 到 `main` 后由 GitHub Actions 将版本按次版本号递增，`1.1.0 -> 1.2.0`，`1.9.0 -> 2.0.0`
@@ -228,7 +230,7 @@ npm run release-linux
 - AES 加密密钥硬编码在 `main.js` 中，有心人可通过逆向获取，属轻度保护
 - `asar: false` 导致打包后源码明文可见，加密 `.enc` 文件的保护依赖密钥安全
 - `build/logo.png` 当前为 256x256，构建时通过 `scripts/prepare_icons.js` 自动生成 1024x1024 `build/icon.png`、Windows `build/icon.ico`，并在 macOS runner 上生成 `build/icon.icns`
-- macOS/Linux 安装资产已包含各自的 Python 3.12.8 x64 运行时；依赖 QMT、xtquant、Windows GUI 或其他 Windows 专属能力的插件仍不能在 macOS/Linux 运行
+- macOS x64/arm64 与 Linux x64 安装资产已包含各自同架构 Python 3.12.8 运行时；依赖 QMT、xtquant、Windows GUI 或其他 Windows 专属能力的插件仍不能在 macOS/Linux 运行
 - Font Awesome 通过 CDN 加载，离线环境下图标可能不显示
 - 若需要在 CI 中恢复 `xtquant`，需提供 `XTQUANT_PACKAGE_URL` Secret 指向 wheel 或 zip 包
 - 仓库已于 2026-05-04 执行 Git 重新初始化以摆脱历史构建产物污染；旧仓库元数据备份在项目根目录 `.git_backup_20260504_181500/`
@@ -255,3 +257,4 @@ npm run release-linux
 | 2026-09-20 | 修复插件 Windows 任务栏图标，新增可自定义的统一用户配置目录 | `main.js`, `index.html`, `app/plugin_*`, `app/software/`, `build/installer.nsh` |
 | 2026-09-21 | 将插件用户配置目录移至常规设置并增加独立保存，修复选择目录后重启恢复旧值 | `main.js`, `index.html`, `app/plugin_config.js`, `scripts/test_plugin_config.js` |
 | 2026-10-18 | 修复 macOS/Linux 安装包误用 Windows Python 路径，按目标平台准备、校验并选择 Python 3.12.8 x64 运行时 | `main.js`, `app/python_runtime.js`, `.github/workflows/release.yml`, `scripts/prepare_portable_python.sh` |
+| 2026-10-18 | 新增 macOS Intel/Apple Silicon 双架构构建与 Python arm64 运行时，合并双架构自动更新元数据，并为偶发 DMG 卸载失败增加有限重试 | `.github/workflows/release.yml`, `package.json`, `app/python_runtime.js`, `scripts/` |

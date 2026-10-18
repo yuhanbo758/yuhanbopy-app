@@ -97,8 +97,16 @@ jobs:
 
   build-macos:
     needs: prepare-release
-    # 当前仅发布 x64 资产，固定 Intel runner，避免 macos-latest 切换到 arm64 后运行时架构不匹配。
-    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    # Python 运行时包含原生二进制，必须在与目标架构一致的 runner 上构建和验证。
+    runs-on: ${{ matrix.runner }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -117,19 +125,30 @@ jobs:
 
       - name: Prepare portable Python runtime
         shell: bash
-        run: bash scripts/prepare_portable_python.sh macos
+        run: bash scripts/prepare_portable_python.sh macos "${{ matrix.arch }}"
 
       - name: Build macOS release
-        run: npm run release-mac
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            rm -rf dist
+            if npm run "release-mac-${{ matrix.arch }}"; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              exit 1
+            fi
+            echo "macOS build attempt $attempt failed; retrying after hdiutil cleanup delay..."
+            sleep 15
+          done
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-dist
+          name: macos-dist-${{ matrix.arch }}
           path: |
             dist/*.dmg
             dist/*.zip
-            dist/*.yml
             dist/*.blockmap
 
   build-linux:
@@ -151,7 +170,7 @@ jobs:
 
       - name: Prepare portable Python runtime
         shell: bash
-        run: bash scripts/prepare_portable_python.sh linux
+        run: bash scripts/prepare_portable_python.sh linux x64
 
       - name: Build Linux release
         run: npm run release-linux
@@ -169,6 +188,11 @@ jobs:
     needs: [prepare-release, build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout release sources
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -178,8 +202,12 @@ jobs:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: macos-dist
+          pattern: macos-dist-*
           path: dist
+          merge-multiple: true
+
+      - name: Generate combined macOS update metadata
+        run: node scripts/generate_macos_update_manifest.js dist
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
