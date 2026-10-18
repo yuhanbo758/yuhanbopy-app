@@ -9,7 +9,9 @@
     "build": "electron-builder",
     "build-win": "npm run prepare-icons && electron-builder --win --x64",
     "release-win": "npm run prepare-icons && electron-builder --win --x64 --publish never",
-    "release-mac": "npm run prepare-icons && electron-builder --mac --x64 --publish never",
+    "release-mac": "npm run release-mac-x64",
+    "release-mac-x64": "npm run prepare-icons && electron-builder --mac --x64 --publish never",
+    "release-mac-arm64": "npm run prepare-icons && electron-builder --mac --arm64 --publish never",
     "release-linux": "npm run prepare-icons && electron-builder --linux --x64 --publish never",
     "bump-version": "node scripts/bump_version.js",
     "test-software-store": "node scripts/test_software_store.js",
@@ -70,18 +72,8 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
+        "dmg",
+        "zip"
       ],
       "artifactName": "yuhanbopy-app-${version}-mac-${arch}.${ext}"
     },

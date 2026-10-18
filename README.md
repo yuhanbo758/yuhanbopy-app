@@ -1,9 +1,9 @@
 # 三人聚智-Python程序管理工具
 
-> 基于 Electron 的 Windows 桌面应用，用于分发、管理和运行加密保护的 Python 量化交易工具。
+> 基于 Electron 的跨平台桌面应用，用于分发、管理和运行 Python 工具插件；量化交易相关 Windows 专属插件仍仅支持 Windows。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Platform: Windows](https://img.shields.io/badge/Platform-Windows%20x64-blue)](https://www.microsoft.com/windows)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/yuhanbo758/yuhanbopy-app/releases)
 [![Electron](https://img.shields.io/badge/Electron-25.x-47848F)](https://www.electronjs.org/)
 [![Python](https://img.shields.io/badge/Python-3.12.8%20Embedded-3776AB)](https://www.python.org/)
 
@@ -33,7 +33,7 @@
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | Electron | ^25.9.8 | 桌面应用框架 |
-| electron-builder | 23.6.0 | Windows/macOS/Linux x64 打包 |
+| electron-builder | 23.6.0 | Windows/Linux x64、macOS x64/arm64 打包 |
 | Python | 3.12.8（随平台打包） | 运行 Python 插件 |
 | electron-updater | ^6.8.3 | 应用自动更新（双源：对象存储 + GitHub） |
 | xtquant (迅投QMT) | — | 量化交易数据接口 |
@@ -46,7 +46,7 @@
 
 ## 📋 系统要求
 
-- **操作系统：** Windows、macOS 或 Linux x64；依赖 QMT、xtquant 等 Windows 能力的插件仍仅支持 Windows
+- **操作系统：** Windows/Linux x64，或 Intel/Apple Silicon macOS；依赖 QMT、xtquant 等 Windows 能力的插件仍仅支持 Windows
 - **依赖：** 无需额外安装 Python，安装包包含对应平台运行时；也可在设置中选择已有的 Python 3 环境
 
 ---
@@ -109,6 +109,7 @@ yuhanbopy-lh/
 └── python/
     ├── python-3.12.8-embed-amd64/  # Windows Python 运行时
     ├── python-3.12.8-macos-x64/     # macOS CI 构建时生成
+    ├── python-3.12.8-macos-arm64/   # Apple Silicon macOS CI 构建时生成
     └── python-3.12.8-linux-x64/     # Linux CI 构建时生成
 ```
 

@@ -1,5 +1,6 @@
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const {
     createBundledRuntime,
@@ -7,6 +8,7 @@ const {
     createPythonProcessEnv,
     inspectPythonRuntime
 } = require('../app/python_runtime');
+const { generateManifest } = require('./generate_macos_update_manifest');
 
 async function main() {
     const projectRoot = path.resolve(__dirname, '..');
@@ -20,9 +22,13 @@ async function main() {
     assert.strictEqual(embeddedEnv.PYTHONHOME, rootPath);
     assert(embeddedEnv.PYTHONPATH.includes(path.join(rootPath, 'Lib', 'site-packages')));
 
-    for (const [platform, directory] of [['darwin', 'macos'], ['linux', 'linux']]) {
-        const runtime = createBundledRuntime(projectRoot, { platform, arch: 'x64' });
-        assert.strictEqual(runtime.executable, path.join(projectRoot, 'python', `python-3.12.8-${directory}-x64`, 'bin', 'python3'));
+    for (const [platform, directory, arch] of [
+        ['darwin', 'macos', 'x64'],
+        ['darwin', 'macos', 'arm64'],
+        ['linux', 'linux', 'x64']
+    ]) {
+        const runtime = createBundledRuntime(projectRoot, { platform, arch });
+        assert.strictEqual(runtime.executable, path.join(projectRoot, 'python', `python-3.12.8-${directory}-${arch}`, 'bin', 'python3'));
         assert(!runtime.executable.endsWith('.exe'), `${platform} 不能使用 Windows 解释器`);
         const env = createPythonProcessEnv(runtime, {
             baseEnv: { PATH: 'system-path', TCL_LIBRARY: 'host-tcl', TK_LIBRARY: 'host-tk' },
@@ -33,17 +39,38 @@ async function main() {
         assert.strictEqual(env.TCL_LIBRARY, undefined, '不存在随包 Tcl 路径时不能继承构建机路径');
         assert.strictEqual(env.TK_LIBRARY, undefined, '不存在随包 Tk 路径时不能继承构建机路径');
     }
-    assert.throws(() => createBundledRuntime(projectRoot, { platform: 'darwin', arch: 'arm64' }), /不支持/);
+    assert.throws(() => createBundledRuntime(projectRoot, { platform: 'linux', arch: 'arm64' }), /不支持/);
+    assert.throws(() => createBundledRuntime(projectRoot, { platform: 'win32', arch: 'arm64' }), /不支持/);
 
     const workflow = fs.readFileSync(path.join(projectRoot, '.github', 'workflows', 'release.yml'), 'utf8');
-    assert(workflow.includes('bash scripts/prepare_portable_python.sh macos'));
-    assert(workflow.includes('bash scripts/prepare_portable_python.sh linux'));
-    assert(workflow.includes('runs-on: macos-15-intel'), 'x64 macOS 资产必须在 Intel runner 构建');
+    assert(workflow.includes('bash scripts/prepare_portable_python.sh macos "${{ matrix.arch }}"'));
+    assert(workflow.includes('bash scripts/prepare_portable_python.sh linux x64'));
+    assert(workflow.includes('runner: macos-15-intel'), 'x64 macOS 资产必须在 Intel runner 构建');
+    assert(workflow.includes('runner: macos-15'), 'arm64 macOS 资产必须在 Apple Silicon runner 构建');
+    assert(workflow.includes('node scripts/generate_macos_update_manifest.js dist'));
+    const runtimeScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'prepare_portable_python.sh'), 'utf8');
+    assert(runtimeScript.includes('aarch64-apple-darwin'));
+    assert(runtimeScript.includes('python-${version}-${platform}-${architecture}'));
+    assert(runtimeScript.includes('Runtime architecture mismatch'));
     const mainSource = fs.readFileSync(path.join(projectRoot, 'main.js'), 'utf8');
     assert(!mainSource.includes("python-3.12.8-embed-amd64"), '主进程不能硬编码 Windows runtime 路径');
     assert(mainSource.includes("process.platform === 'win32'"), '自定义解释器选择器必须按平台过滤');
     const indexSource = fs.readFileSync(path.join(projectRoot, 'index.html'), 'utf8');
     assert(indexSource.includes('macOS/Linux 通常为 python3'));
+
+    const manifestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'yuhanbopy-mac-manifest-'));
+    try {
+        fs.writeFileSync(path.join(manifestRoot, 'yuhanbopy-app-9.9.9-mac-x64.zip'), 'x64');
+        fs.writeFileSync(path.join(manifestRoot, 'yuhanbopy-app-9.9.9-mac-arm64.zip'), 'arm64');
+        const manifest = await generateManifest(manifestRoot, '9.9.9');
+        const manifestSource = fs.readFileSync(manifest.outputPath, 'utf8');
+        assert(manifestSource.includes('version: 9.9.9'));
+        assert(manifestSource.includes('yuhanbopy-app-9.9.9-mac-x64.zip'));
+        assert(manifestSource.includes('yuhanbopy-app-9.9.9-mac-arm64.zip'));
+        assert.strictEqual(manifest.files.length, 2);
+    } finally {
+        fs.rmSync(manifestRoot, { recursive: true, force: true });
+    }
 
     const custom = createCustomRuntime('D:\\Python311\\python.exe');
     const customEnv = createPythonProcessEnv(custom, {

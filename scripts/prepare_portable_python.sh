@@ -2,26 +2,40 @@
 set -euo pipefail
 
 platform="${1:-}"
+architecture="${2:-x64}"
 version="3.12.8"
 release_tag="20241206"
 
-case "$platform" in
-  macos)
+case "$platform:$architecture" in
+  macos:x64)
     target_triple="x86_64-apple-darwin"
+    expected_machine="x86_64"
     expected_sha256="3ba35c706577d755e8e52a4c161a042464577c0e695e2a605362fa469e26de10"
     ;;
-  linux)
+  macos:arm64)
+    target_triple="aarch64-apple-darwin"
+    expected_machine="arm64"
+    expected_sha256="e3c4aa607717b23903ca2650d5c3ee24f89b97543e2db2b0f463bddc7a9e92f3"
+    ;;
+  linux:x64)
     target_triple="x86_64-unknown-linux-gnu"
+    expected_machine="x86_64"
     expected_sha256="b9d6ee5ddac1198e72d53112698773fc8bb597de095592eb849ca794306699ba"
     ;;
   *)
-    echo "Usage: $0 <macos|linux>" >&2
+    echo "Usage: $0 <macos|linux> [x64|arm64]" >&2
     exit 2
     ;;
 esac
 
+actual_machine="$(uname -m)"
+if [[ "$actual_machine" != "$expected_machine" ]]; then
+  echo "Runtime architecture mismatch: requested $architecture, runner is $actual_machine" >&2
+  exit 1
+fi
+
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
-target_root="$project_root/python/python-${version}-${platform}-x64"
+target_root="$project_root/python/python-${version}-${platform}-${architecture}"
 archive_name="cpython-${version}+${release_tag}-${target_triple}-install_only.tar.gz"
 download_url="https://github.com/astral-sh/python-build-standalone/releases/download/${release_tag}/${archive_name}"
 temp_root="$(mktemp -d)"
@@ -44,6 +58,7 @@ fi
 rm -rf \
   "$project_root/python/python-${version}-embed-amd64" \
   "$project_root/python/python-${version}-macos-x64" \
+  "$project_root/python/python-${version}-macos-arm64" \
   "$project_root/python/python-${version}-linux-x64"
 mkdir -p "$target_root"
 tar -xzf "$archive_path" -C "$target_root" --strip-components=1

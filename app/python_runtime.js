@@ -24,11 +24,10 @@ function firstDirectory(candidates) {
 }
 
 function createBundledRuntime(appRoot, { platform = process.platform, arch = process.arch } = {}) {
-    if (arch !== 'x64') {
-        throw new Error(`当前安装包不支持 ${platform}/${arch} Python 运行时`);
-    }
-
     if (platform === 'win32') {
+        if (arch !== 'x64') {
+            throw new Error(`当前安装包不支持 ${platform}/${arch} Python 运行时`);
+        }
         const rootPath = path.join(appRoot, 'python', 'python-3.12.8-embed-amd64');
         const libPath = path.join(rootPath, 'Lib');
         const scriptsPath = path.join(rootPath, 'Scripts');
@@ -43,10 +42,13 @@ function createBundledRuntime(appRoot, { platform = process.platform, arch = pro
     }
 
     const platformName = platform === 'darwin' ? 'macos' : platform;
-    if (!['macos', 'linux'].includes(platformName)) {
+    const supported = platformName === 'macos'
+        ? ['x64', 'arm64'].includes(arch)
+        : platformName === 'linux' && arch === 'x64';
+    if (!supported) {
         throw new Error(`当前安装包不支持 ${platform}/${arch} Python 运行时`);
     }
-    const rootPath = path.join(appRoot, 'python', `python-3.12.8-${platformName}-x64`);
+    const rootPath = path.join(appRoot, 'python', `python-3.12.8-${platformName}-${arch}`);
     const scriptsPath = path.join(rootPath, 'bin');
     const libPath = path.join(rootPath, 'lib', 'python3.12');
     return createEmbeddedRuntime({
