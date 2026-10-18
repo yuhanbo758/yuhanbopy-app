@@ -49,12 +49,13 @@ const installedAppPath = app.isPackaged
     ? (process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath))
     : __dirname;
 const persistentSoftwarePath = path.join(installedAppPath, 'plugins');
-const pluginLogoCachePath = path.join(app.getPath('userData'), 'plugin-logos');
 const pluginBootstrapPath = path.join(embeddedAppPath, 'plugin_bootstrap.py');
 const pathDelimiter = process.platform === 'win32' ? ';' : ':';
 const { initializeSoftwareStore, importLocalSoftware } = require(path.join(embeddedAppPath, 'software_store.js'));
 const { normalizePluginPreferences, applyPluginPreferences, startConfiguredPlugins } = require(path.join(embeddedAppPath, 'plugin_management.js'));
-const { createPluginAppId, ensurePluginLogo } = require(path.join(embeddedAppPath, 'plugin_logo.js'));
+const { createPluginListCache } = require(path.join(embeddedAppPath, 'plugin_list_cache.js'));
+const pluginListCache = createPluginListCache();
+const { createPluginAppId, resolvePluginVisual } = require(path.join(embeddedAppPath, 'plugin_visual.js'));
 const {
     copyMissingPluginConfigs,
     getPluginConfigRoot,
@@ -169,22 +170,22 @@ function getDataUrl(filePath) {
 
 function addProgramVisual(program, settings = {}, cacheOnly = false) {
     try {
-        const result = ensurePluginLogo({
+        const result = resolvePluginVisual({
             folderPath: program.folderPath,
             settings,
-            mainFilePath: program.path,
-            cacheDir: pluginLogoCachePath,
-            cacheOnly
+            defaultLogoPath: getLogoPath(),
+            defaultIconPath: getIconPath()
         });
         return {
             ...program,
             logoPath: result.logoPath,
             taskbarIconPath: result.taskbarIconPath || result.logoPath,
+            visualDependencies: result.visualDependencies,
             logoDataUrl: getDataUrl(result.logoPath),
             pluginAppId: createPluginAppId(cacheOnly ? program.path : program.folderPath)
         };
     } catch (error) {
-        console.warn(`生成插件 Logo 失败 ${program.path}:`, error.message || error);
+        console.warn(`读取插件图标失败 ${program.path}:`, error.message || error);
         return {
             ...program,
             logoPath: '',
@@ -1174,7 +1175,7 @@ async function cleanupRunningProcesses() {
     await Promise.all(tasks);
 }
 
-function getProgramInfo(folderPath) {
+function getProgramInfo(folderPath, configRoot) {
     const settingsJsonPath = path.join(folderPath, 'settings.json');
     const detailFilePath = getDetailFile(folderPath);
 
@@ -1187,7 +1188,7 @@ function getProgramInfo(folderPath) {
                 const config = preparePluginConfig({
                     folderPath,
                     settings,
-                    configRoot: getCurrentPluginConfigRoot(),
+                    configRoot,
                     initialize: false
                 });
                 return [addProgramVisual({
@@ -1231,8 +1232,11 @@ function getProgramInfo(folderPath) {
 
 async function getSoftwareList({ includeHidden = false } = {}) {
     const softwareDir = getSoftwareDir();
+    const settings = loadSettings();
+    const configRoot = getPluginConfigRoot(settings, installedAppPath);
     const items = fs.readdirSync(softwareDir, { withFileTypes: true });
     let programs = [];
+    const activePaths = [];
 
     for (const item of items) {
         if (item.name.startsWith('.')) {
@@ -1240,11 +1244,12 @@ async function getSoftwareList({ includeHidden = false } = {}) {
         }
 
         const itemPath = path.join(softwareDir, item.name);
+        activePaths.push(itemPath);
         if (item.isDirectory()) {
-            programs = programs.concat(getProgramInfo(itemPath));
+            programs = programs.concat(pluginListCache.get(itemPath, configRoot, () => getProgramInfo(itemPath, configRoot)));
         } else if (item.isFile() && (item.name.endsWith('.py') || item.name.endsWith('.enc'))) {
             const isEncrypted = item.name.endsWith('.enc');
-            programs.push(addProgramVisual({
+            programs.push(...pluginListCache.get(itemPath, configRoot, () => [addProgramVisual({
                 name: path.basename(item.name, isEncrypted ? '.enc' : '.py'),
                 description: isEncrypted ? '加密程序，双击运行' : '双击运行此程序',
                 path: itemPath,
@@ -1255,11 +1260,12 @@ async function getSoftwareList({ includeHidden = false } = {}) {
                 author: '',
                 category: '',
                 requirementsPath: null
-            }, {}, true));
+            }, {}, true)]));
         }
     }
 
-    const managed = applyPluginPreferences(programs, softwareDir, loadSettings().pluginPreferences);
+    pluginListCache.prune(activePaths);
+    const managed = applyPluginPreferences(programs, softwareDir, settings.pluginPreferences);
     return managed.filter((program) => includeHidden || !program.hidden)
         .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }

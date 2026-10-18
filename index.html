@@ -1078,13 +1078,32 @@
             });
         }
 
-        async function loadPrograms() {
-            try {
-                state.programs = await ipcRenderer.invoke('get-software-list');
-                applySearch();
-            } catch (error) {
-                showNotification('加载失败', error.message || '无法读取程序列表', 'error');
+        let programsLoadPromise = null;
+        let programsReloadRequested = false;
+        let programsSignature = '';
+        function loadPrograms() {
+            if (programsLoadPromise) {
+                programsReloadRequested = true;
+                return programsLoadPromise;
             }
+            programsLoadPromise = (async () => {
+                do {
+                    programsReloadRequested = false;
+                    try {
+                        const programs = await ipcRenderer.invoke('get-software-list');
+                        const signature = JSON.stringify(programs);
+                        // 无变化时保留现有卡片和事件绑定，避免周期刷新导致重绘和焦点丢失。
+                        if (signature !== programsSignature) {
+                            programsSignature = signature;
+                            state.programs = programs;
+                            applySearch();
+                        }
+                    } catch (error) {
+                        showNotification('加载失败', error.message || '无法读取程序列表', 'error');
+                    }
+                } while (programsReloadRequested);
+            })().finally(() => { programsLoadPromise = null; });
+            return programsLoadPromise;
         }
 
         function openModal(id) {

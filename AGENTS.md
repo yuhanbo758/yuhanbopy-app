@@ -85,7 +85,7 @@ yuhanbopy-lh/
 | 软件管理器 | `app/software_manager.js` | 封装 Python 进程的运行/停止/清理，用 Map 管理多进程生命周期 |
 | 主界面 | `index.html` | 程序卡片列表、详情弹窗、设置面板、账号状态、更新面板 |
 | Python 环境管理 | `app/python_runtime.js` | 内置/自定义解释器校验与隔离的子进程环境变量构建 |
-| 插件视觉身份 | `app/plugin_logo.js`, `app/plugin_bootstrap.py` | 语义 Logo、Windows ICO、tkinter 图标注入和独立任务栏分组 |
+| 插件视觉身份 | `app/plugin_visual.js`, `app/plugin_bootstrap.py` | 只读加载插件自带图标、缺失时使用主程序默认图标，注入 tkinter 并设置独立任务栏分组；`app/plugin_logo.js` 仅供插件制作脚本生成 PNG/ICO |
 | 插件配置管理 | `app/plugin_config.js`, `app/plugin_config_runtime.py` | 首次复制默认配置、集中保存用户配置、自定义目录迁移与 Python 原子读写 |
 | 日志窗口 | `log.html` | 显示 Python 子进程 stdout/stderr，深色终端风格 |
 | 内置下载器 | `app/software/cos_downloader/` | 从腾讯云 COS 下载插件文件 |
@@ -98,6 +98,10 @@ yuhanbopy-lh/
 ## 编码规范
 
 ### JavaScript（主进程 / 渲染进程）
+
+- **图标职责**：主程序运行时只读取插件自带图标，缺失时使用主程序默认图标；不得生成图片、补做 ICO 或按入口源码变化更新图标。`python-gui-plugin-generator` 在制作插件时通过 `scripts/generate_plugin_logos.js` 完成 PNG/ICO 生成和打包。
+
+- **插件列表性能**：扫描列表只计算配置路径，不创建配置目录或启动 Git 检查；实际配置初始化、写入及目录迁移仍执行保护。列表按入口、元数据、图标、说明文件和目录的文件状态缓存，文件变化或配置目录改变时失效；列表未变时不重建卡片，并合并并发刷新。
 
 - **插件启动与显示设置**：设置页独立管理每个插件的随主程序启动与主界面显示，默认全部显示、不自动启动；隐藏不删除插件且不影响其自动启动。使用插件相对入口路径保存偏好，设置页始终可管理隐藏项。自动启动仅在主程序初始化后执行一次，等待进程启动而非退出，单个失败不阻断其余插件。
 

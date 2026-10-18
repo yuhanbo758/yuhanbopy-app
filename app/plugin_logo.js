@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { createPluginAppId } = require('./plugin_visual');
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const GENERATED_META_FILE = '.yuhanbopy-logo.json';
@@ -278,15 +279,16 @@ function findManualLogo(folderPath, settings = {}) {
 function ensurePluginLogo({ folderPath, settings = {}, mainFilePath = '', cacheDir = '', cacheOnly = false }) {
     const fingerprint = calculatePluginFingerprint(folderPath, settings, mainFilePath);
     const semanticType = classifyPluginSemantic(folderPath, settings, mainFilePath);
-    const png = generatePluginLogoPng(fingerprint, semanticType);
-    const ico = generateWindowsIco(png);
     if (cacheOnly) {
         if (!cacheDir) throw new Error('cacheOnly 模式必须提供 cacheDir');
         fs.mkdirSync(cacheDir, { recursive: true });
         const cachePath = path.join(cacheDir, `${fingerprint}.png`);
         const taskbarIconPath = path.join(cacheDir, `${fingerprint}.ico`);
-        if (!fs.existsSync(cachePath)) fs.writeFileSync(cachePath, png);
-        if (!fs.existsSync(taskbarIconPath)) fs.writeFileSync(taskbarIconPath, ico);
+        if (!fs.existsSync(cachePath) || !fs.existsSync(taskbarIconPath)) {
+            const png = fs.existsSync(cachePath) ? fs.readFileSync(cachePath) : generatePluginLogoPng(fingerprint, semanticType);
+            if (!fs.existsSync(cachePath)) fs.writeFileSync(cachePath, png);
+            if (!fs.existsSync(taskbarIconPath)) fs.writeFileSync(taskbarIconPath, generateWindowsIco(png));
+        }
         return { logoPath: cachePath, taskbarIconPath, fingerprint, semanticType, generated: true, cached: true };
     }
 
@@ -348,6 +350,9 @@ function ensurePluginLogo({ folderPath, settings = {}, mainFilePath = '', cacheD
         ? configuredTarget
         : path.join(folderPath, 'logo.png');
 
+    // 已有手工图片或有效自动图标时无需重新绘制和压缩 PNG。
+    const png = generatePluginLogoPng(fingerprint, semanticType);
+    const ico = generateWindowsIco(png);
     try {
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
         fs.writeFileSync(targetPath, png);
@@ -370,12 +375,6 @@ function ensurePluginLogo({ folderPath, settings = {}, mainFilePath = '', cacheD
         if (!fs.existsSync(taskbarIconPath)) fs.writeFileSync(taskbarIconPath, ico);
         return { logoPath: cachePath, taskbarIconPath, fingerprint, semanticType, generated: true, cached: true };
     }
-}
-
-function createPluginAppId(folderPath) {
-    const stableName = path.basename(folderPath).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
-    const suffix = stableName || crypto.createHash('sha256').update(path.basename(folderPath)).digest('hex').slice(0, 20);
-    return `com.sanrenjz.yuhanbopy.plugin.${suffix}`.slice(0, 120);
 }
 
 module.exports = {

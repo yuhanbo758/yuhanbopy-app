@@ -52,7 +52,8 @@ function getDefaultConfigPath(folderPath, settings = {}) {
 }
 
 function preparePluginConfig({ folderPath, settings = {}, configRoot, initialize = true }) {
-    const rootPath = protectConfigDirectory(configRoot);
+    // 列表查询只计算路径；Git 保护检查仅在实际初始化/读写流程执行。
+    const rootPath = initialize ? protectConfigDirectory(configRoot) : path.resolve(configRoot);
     const pluginId = safePluginId(folderPath);
     const configPath = path.join(rootPath, `${pluginId}.json`);
     const defaultConfigPath = getDefaultConfigPath(folderPath, settings);
